@@ -13,12 +13,17 @@ import importlib
 
 # board name -> target module (each exposes create_soc(**kwargs)).
 BOARDS = {
-    "pcie_screamer":    "pcie_dma_engine.targets.pcie_screamer",
-    "pcie_screamer_m2": "pcie_dma_engine.targets.pcie_screamer_m2",
+    "pcie_screamer":        "pcie_dma_engine.targets.pcie_screamer",
+    "pcie_screamer_m2":     "pcie_dma_engine.targets.pcie_screamer_m2",
+    "acorn_baseboard_mini": "pcie_dma_engine.targets.acorn_baseboard_mini",
 }
 
-def create_soc(board, **kwargs):
+def import_target(board):
+    """Return the target module for a board (it exposes create_soc() and, optionally, the
+    add_arguments()/argdict() pair that declares the board's own build.py options)."""
     if board not in BOARDS:
         raise ValueError(f"Unknown board '{board}', available: {', '.join(BOARDS)}")
-    target = importlib.import_module(BOARDS[board])
-    return target.create_soc(**kwargs)
+    return importlib.import_module(BOARDS[board])
+
+def create_soc(board, **kwargs):
+    return import_target(board).create_soc(**kwargs)

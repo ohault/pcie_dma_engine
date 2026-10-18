@@ -7,6 +7,13 @@ from pcie_dma_engine.gateware.transport.usb import USBTransport
 from pcie_dma_engine.platforms import pcie_screamer
 
 
+def add_arguments(parser):
+    parser.add_argument("--with-analyzer", action="store_true", help="Enable the LiteScope analyzer")
+    parser.add_argument("--with-loopback", action="store_true", help="Enable the USB loopback path")
+
+def argdict(args):
+    return dict(with_analyzer=args.with_analyzer, with_loopback=args.with_loopback)
+
 def create_soc(with_analyzer=False, with_loopback=False, **kwargs):
     platform     = pcie_screamer.Platform()
     sys_clk_freq = int(100e6)
