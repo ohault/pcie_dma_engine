@@ -1,34 +1,39 @@
-```
-                        ___  _________    ____
-                       / _ \/ ___/  _/__ / __/__________ ___ ___ _  ___ ____
-                      / ___/ /___/ // -_)\ \/ __/ __/ -_) _ `/  ' \/ -_) __/
-                     /_/   \___/___/\__/___/\__/_/  \__/\_,_/_/_/_/\__/_/
+# PCIe DMA Engine
 
-                             Copyright (c) 2016-2020, EnjoyDigital
-                             Copyright (c) 2016-2020, Lambdaconcept
-                                Powered by Migen & LiteX
-```
+Open, multi-board **PCIe DMA gateware built on LiteX**, aiming to be **compatible with the
+[PCILeech / LeechCore](https://github.com/ufrisk/pcileech) host tools**.
 
-# PCIe Screamer - TLPs experiments...
+This project is the continuation of the original *PCIe Screamer* example design, generalized so
+that the same gateware can target many LiteX-supported boards (not just Artix-7) and reach the host
+over several transports (USB, Ethernet, ...), while staying compatible with the PCILeech toolchain.
 
-![PCIe Screamer](doc/banner.jpg)
-
-## Introduction
-The PCIe bus is now heavily used to interconnect chips in computers/embedded devices. Tools to interact with PCIe can be very expensive (>$50k)
-and often limited when doing security researchs. The PCIe Screamer aims to offer an alternative at a reasonable price.
+> Status: work in progress. The legacy FT601/USB3 boards build today; the PCILeech-compatible
+> fast-path, the Ethernet transport and the new boards are being added. See the design document:
+> [`doc/pcileech_porting_analysis.md`](doc/pcileech_porting_analysis.md).
 
 ## Architecture
-The PCIe Screamer uses a Xilinx Artix7 FPGA with PCIe and USB3.0 interfaces:
-- Xilinx Artix7 XC7A35T FPGA
-- FT601 FTDI USB 3.0
-- PCIe Gen2 X1 or X4 (M2)
 
-## Example design
-A example design built with Migen and LiteX is provided and allows:
-- Redirecting PCIe TLP requests to the Host, using the Host to analyze/generate the TLP completion and sending it to the PCIe bus.
-- Generating PCIe TLP requests from the Host and redirecting the TLP completions to the Host.
+The SoC is split along clean seams so new boards and host links can be added without touching the
+shared logic:
 
-### Getting started
+- **PCIe PHY** — LitePCIe (Xilinx 7-series today; other families planned).
+- **Host transport** — a pluggable link to the host (FT601/USB3 today; Ethernet/UDP and others
+  planned).
+- **Shared SoC** — TLP path, MSI and the optional LiteScope analyzer.
+
+## Supported boards
+
+| `--board`           | FPGA                 | Transport  |
+|---------------------|----------------------|------------|
+| `pcie_screamer`     | Xilinx Artix-7 35T   | FT601 USB3 |
+| `pcie_screamer_m2`  | Xilinx Artix-7 35T   | FT601 USB3 |
+
+(`pcie_screamer` / `pcie_screamer_m2` name the original LambdaConcept boards.)
+
+## Getting started
+
+Install the LiteX ecosystem (Migen, LiteX, LitePCIe, LiteEth, LiteScope, ...):
+
 ```sh
 $ wget https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py
 $ chmod +x litex_setup.py
@@ -37,18 +42,36 @@ $ sudo ./litex_setup.py install
 ```
 
 ### Build the FPGA bitstream
+
 ```sh
-$ ./pcie_screamer.py --build
+$ python -m pcie_dma_engine --board pcie_screamer --build
 ```
 
 ### Load the FPGA bitstream
+
 ```sh
-$ ./pcie_screamer.py --load
+$ python -m pcie_dma_engine --board pcie_screamer --load
+```
+
+Use `--board pcie_screamer_m2` (or the `--m2` alias) for the M2 variant, and `--with-analyzer` /
+`--with-loopback` as needed. Run `python -m pcie_dma_engine --help` for all options.
+
+### Elaboration smoke test
+
+Elaborate every supported board (no vendor toolchain required) to catch regressions:
+
+```sh
+$ python test/test_elaborate.py
 ```
 
 ## Software support
-The Gateware/Software in this repository is just a proof of concept that has been done to evaluate and check the feasability of a low cost PCIe
-board/tool for security research.PCIe Screamer is well supported by [PCIe Leech](https://github.com/ufrisk/pcileech) and it is recommended to use it.
 
-## Get one
-The PCIe Screamer is available at: https://shop.lambdaconcept.com/
+The gateware targets compatibility with the PCILeech / LeechCore host tools; see
+[`doc/pcileech_porting_analysis.md`](doc/pcileech_porting_analysis.md) for the protocol analysis and
+roadmap.
+
+## History & credits
+
+Derived from the *PCIe Screamer* example design by EnjoyDigital and LambdaConcept
+(Copyright (c) 2016-2020). Powered by [Migen](https://github.com/m-labs/migen) &
+[LiteX](https://github.com/enjoy-digital/litex). PCILeech / LeechCore are by Ulf Frisk.

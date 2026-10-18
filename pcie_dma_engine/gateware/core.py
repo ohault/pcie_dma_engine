@@ -2,7 +2,7 @@
 # This file is Copyright (c) 2018-2019 Pierre-Olivier Vauboin <po@lambdaconcept.com>
 # License: BSD
 
-# Board-independent PCIe Screamer SoC.
+# Board-independent PCIe DMA Engine SoC.
 #
 # Wires the PCIe PHY, the (pluggable) host transport, MSI and the optional
 # analyzer together. Board-specific details (platform, clocking) are supplied by
@@ -18,7 +18,7 @@ from litex.soc.cores.uart import UARTWishboneBridge
 
 from litepcie.phy.s7pciephy import S7PCIEPHY
 
-from gateware.msi import MSI
+from pcie_dma_engine.gateware.msi import MSI
 
 from litescope import LiteScopeAnalyzer
 
@@ -44,14 +44,14 @@ class _CRG(Module):
         self.comb += self.cd_usb.clk.eq(usb_clk100)
         self.specials += AsyncResetSynchronizer(self.cd_usb, ResetSignal("pcie"))
 
-# ScreamerSoC --------------------------------------------------------------------------------------
+# PCIeDMAEngineSoC --------------------------------------------------------------------------------------
 
-class ScreamerSoC(SoCMini):
+class PCIeDMAEngineSoC(SoCMini):
     def __init__(self, platform, sys_clk_freq=int(100e6), transport=None, with_analyzer=True):
         assert transport is not None
 
         # SoCMini ----------------------------------------------------------------------------------
-        SoCMini.__init__(self, platform, sys_clk_freq, ident="PCIe Screamer", ident_version=True)
+        SoCMini.__init__(self, platform, sys_clk_freq, ident="PCIe DMA Engine", ident_version=True)
 
         # CRG --------------------------------------------------------------------------------------
         self.submodules.crg = _CRG(platform, sys_clk_freq)

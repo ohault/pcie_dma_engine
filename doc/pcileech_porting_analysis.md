@@ -223,20 +223,22 @@ litex-boards idiom: thin per-target files over a shared core. The transport, PHY
 seams; the protocol core and firmware are shared.
 
 ```
-gateware/
-  core.py            # ScreamerSoC base (protocol-agnostic wiring)
-  pcileech/          # PCILeech fast-path framing (dword mux, 0xE/0x77, resync) [BSD]
-  transport/
-    eth.py           # LiteEth UDP  ⇄ dword seam
-    ft601.py         # existing FT601Sync ⇄ dword seam
-    ft245.py         # LiteX FT245 ⇄ dword seam
-    serdes.py        # LiteICLink bridge (2-board) [later]
-  tlp.py, msi.py, usb.py, etherbone.py, ft601.py   # existing (legacy family)
-firmware/            # device-side C control plane [GPLv3, isolated]
-  pcileech_defs.h    # shared protocol definitions (mirror device_fpga.c)
-platforms/           # + acorn_baseboard_mini.py, tang_mega_138k_pro.py
-targets/             # thin: CRG + PHY + transport per board
-pcie_screamer.py     # CLI dispatcher: --board <name>
+pcie_dma_engine/       # Python package
+  __init__.py          # library API: create_soc(), BOARDS
+  __main__.py          # CLI: python -m pcie_dma_engine --board <name>
+  gateware/
+    core.py            # PCIeDMAEngineSoC base (protocol-agnostic wiring)
+    pcileech/          # PCILeech fast-path framing (dword mux, 0xE/0x77, resync) [BSD]
+    transport/
+      usb.py           # existing FT601Sync ⇄ dword seam
+      eth.py           # LiteEth UDP  ⇄ dword seam        [later]
+      ft245.py         # LiteX FT245 ⇄ dword seam         [later]
+      serdes.py        # LiteICLink bridge (2-board)      [later]
+    tlp.py, msi.py, usb.py, etherbone.py, ft601.py   # existing (legacy family)
+  platforms/           # pcie_screamer*.py + acorn_baseboard_mini.py, tang_mega_138k_pro.py
+  targets/             # thin: CRG + PHY + transport per board
+firmware/              # device-side C control plane [GPLv3, isolated]
+  pcileech_defs.h      # shared protocol definitions (mirror device_fpga.c)
 ```
 
 **"All targets build" guard:** vendor toolchains (Vivado / Gowin) are needed for bitstreams,
@@ -245,7 +247,7 @@ CI on every commit — the regression net that proves a new board did not break 
 (The Gowin PHY `do_finalize` downloads `gw5apciephy.zip`; gate or pre-cache it offline.)
 
 ### Non-breaking migration order
-1. Extract `ScreamerSoC` + USB transport wrapper; re-express `pcie_screamer`/`_m2` as thin
+1. Extract `PCIeDMAEngineSoC` + USB transport wrapper; re-express `pcie_screamer`/`_m2` as thin
    targets (**no behaviour change** — diff generated CSR/verilog).
 2. Add `--board` dispatcher + elaboration smoke test (the safety net).
 3. Add PCILeech fast-path + Ethernet transport + **Acorn** target (S7, 64-bit).
@@ -287,7 +289,7 @@ For the board-to-board-over-SFP path (§4), candidate building blocks to evaluat
 
 ## 9. Immediate next step
 
-Phase 1 of §6: the **non-breaking refactor** — extract `ScreamerSoC` + the FT601 transport
-wrapper, re-express the two legacy targets as thin targets, add the `--board` dispatcher and
+Phase 1 of §6: the **non-breaking refactor** — extract `PCIeDMAEngineSoC` + the FT601 transport
+wrapper, re-express the two legacy targets as thin targets, add the `--board` dispatcher (`python -m pcie_dma_engine`) and
 the elaboration smoke test — so the regression net exists before any new board or the PCILeech
 fast path lands.

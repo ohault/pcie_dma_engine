@@ -15,13 +15,13 @@ import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pcie_screamer import BOARDS
+from pcie_dma_engine import BOARDS
 
 _CHILD = """
 import os, sys
 sys.path.insert(0, {root!r})
 from litex.soc.integration.builder import Builder
-from pcie_screamer import create_soc
+from pcie_dma_engine import create_soc
 soc = create_soc({board!r}, with_analyzer=True, with_loopback=False)
 Builder(soc, output_dir={out!r}, csr_csv=os.path.join({out!r}, "csr.csv"),
     compile_software=False, compile_gateware=False).build(run=False)

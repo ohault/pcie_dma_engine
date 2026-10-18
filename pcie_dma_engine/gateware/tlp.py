@@ -6,11 +6,9 @@ from migen import *
 from litex.soc.interconnect import stream
 from litex.soc.interconnect.stream import Converter, StrideConverter
 
-import sys
-sys.path.append("../")
 
 from litepcie.common import phy_layout as tlp_description
-from gateware.usb import user_description as usb_description
+from pcie_dma_engine.gateware.usb import user_description as usb_description
 
 
 class TLPSender(Module):

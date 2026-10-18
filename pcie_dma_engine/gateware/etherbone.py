@@ -7,7 +7,7 @@ from litex.soc.interconnect import wishbone
 from litex.soc.interconnect.packet import *
 
 
-from gateware.usb import user_description
+from pcie_dma_engine.gateware.usb import user_description
 
 
 etherbone_magic = 0x4e6f

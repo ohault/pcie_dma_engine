@@ -5,7 +5,7 @@
 # USB (FT601) host transport.
 #
 # Wraps the FT601 synchronous FIFO PHY and the USB packet core, and exposes the
-# board-independent transport interface used by ScreamerSoC:
+# board-independent transport interface used by PCIeDMAEngineSoC:
 #   - wishbone_master : control-plane Wishbone master (None in loopback mode).
 #   - tlp             : TLP sender/receiver endpoint (None in loopback mode).
 
@@ -14,10 +14,10 @@ from migen import *
 from litex.soc.interconnect import stream
 from litex.soc.cores.usb_fifo import phy_description
 
-from gateware.usb import USBCore
-from gateware.etherbone import Etherbone
-from gateware.tlp import TLP
-from gateware.ft601 import FT601Sync
+from pcie_dma_engine.gateware.usb import USBCore
+from pcie_dma_engine.gateware.etherbone import Etherbone
+from pcie_dma_engine.gateware.tlp import TLP
+from pcie_dma_engine.gateware.ft601 import FT601Sync
 
 
 class USBTransport(Module):
