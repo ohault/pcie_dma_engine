@@ -227,23 +227,26 @@ litex-boards idiom: thin per-target files over a shared core. The transport, PHY
 seams; the protocol core and firmware are shared.
 
 ```
+build.py               # CLI / build entry point (./build.py --board <name> …)
 pcie_dma_engine/       # Python package
-  __init__.py          # library API: create_soc(), BOARDS
-  __main__.py          # CLI: python -m pcie_dma_engine --board <name>
+  __init__.py          # library API: create_soc(board, …), BOARDS (board -> target)
   gateware/
-    core.py            # PCIeDMAEngineSoC base (protocol-agnostic wiring)
-    pcileech/          # PCILeech fast-path framing (dword mux, 0xE/0x77, resync) [BSD]
+    soc.py             # PCIeDMAEngineSoC base (protocol-agnostic wiring)
+    pcileech/          # PCILeech protocol (framer, common; engine on the DMA-engine branches) [BSD]
     transport/
-      usb.py           # existing FT601Sync ⇄ dword seam
-      eth.py           # LiteEth UDP  ⇄ dword seam        [later]
+      usb.py           # FT601Sync ⇄ dword seam
+      eth.py           # LiteEth UDP ⇄ dword seam
       ft245.py         # LiteX FT245 ⇄ dword seam         [later]
       serdes.py        # LiteICLink bridge (2-board)      [later]
-    tlp.py, msi.py, usb.py, etherbone.py, ft601.py   # existing (legacy family)
-  platforms/           # pcie_screamer*.py + acorn_baseboard_mini.py, tang_mega_138k_pro.py
-  targets/             # thin: CRG + PHY + transport per board
+    tlp.py, msi.py, usb.py, etherbone.py, ft601.py   # legacy family blocks
+  platforms/           # thin wrappers over litex_boards (pcie_screamer*, acorn_baseboard_mini, …)
+  targets/             # one per board: CRG + PHY + transport (pcie_screamer*, acorn_baseboard_mini)
 firmware/              # device-side C control plane [GPLv3, isolated]
   pcileech_defs.h      # shared protocol definitions (mirror device_fpga.c)
 ```
+
+Every board is uniformly **platform + target**; `create_soc()` dispatches by board to its target
+module, matching the LiteX-Boards layout.
 
 **"All targets build" guard:** vendor toolchains (Vivado / Gowin) are needed for bitstreams,
 but every target can be **elaborated to Verilog without them** (`builder.build(run=False)`) in
@@ -294,6 +297,6 @@ For the board-to-board-over-SFP path (§4), candidate building blocks to evaluat
 ## 9. Immediate next step
 
 Phase 1 of §6: the **non-breaking refactor** — extract `PCIeDMAEngineSoC` + the FT601 transport
-wrapper, re-express the two legacy targets as thin targets, add the `--board` dispatcher (`python -m pcie_dma_engine`) and
+wrapper, re-express the two legacy targets as thin targets, add the `--board` dispatcher (`./build.py`) and
 the elaboration smoke test — so the regression net exists before any new board or the PCILeech
 fast path lands.

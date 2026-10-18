@@ -53,7 +53,7 @@ $ ./build.py --board pcie_screamer --build
 $ ./build.py --board pcie_screamer --load
 ```
 
-`./build.py` is a convenience launcher for `python -m pcie_dma_engine` (either works). Use
+`./build.py` is the build entry point. Use
 `--board pcie_screamer_m2` (or the `--m2` alias) for the M2 variant, and `--with-analyzer` /
 `--with-loopback` as needed. Run `./build.py --help` for all options.
 

@@ -4,33 +4,21 @@
 
 # PCIe DMA Engine SoC : open, multi-board PCIe DMA gateware built on LiteX.
 #
-# Library API: create_soc() builds a PCIeDMAEngineSoC for a given board, with a pluggable host
-# transport. The command-line interface lives in __main__ (python -m pcie_dma_engine).
+# Library API: create_soc(board, ...) builds the SoC for a board by dispatching to its target
+# module (pcie_dma_engine/targets/<board>.py). Every board has a platform (pcie_dma_engine/platforms)
+# and a target (pcie_dma_engine/targets), matching the LiteX-Boards convention. The command-line
+# entry point is ./build.py.
 
 import importlib
 
-from pcie_dma_engine.gateware.core import PCIeDMAEngineSoC
-from pcie_dma_engine.gateware.transport.usb import USBTransport
-
-# Boards -------------------------------------------------------------------------------------------
-
-# board name -> (platform module, transport). Transports are kept pluggable so that new boards
-# (Ethernet, ...) can be added without touching the shared SoC.
+# board name -> target module (each exposes create_soc(**kwargs)).
 BOARDS = {
-    "pcie_screamer":    {"platform": "pcie_dma_engine.platforms.pcie_screamer",    "transport": "usb"},
-    "pcie_screamer_m2": {"platform": "pcie_dma_engine.platforms.pcie_screamer_m2", "transport": "usb"},
+    "pcie_screamer":    "pcie_dma_engine.targets.pcie_screamer",
+    "pcie_screamer_m2": "pcie_dma_engine.targets.pcie_screamer_m2",
 }
 
-def create_soc(board, with_analyzer=False, with_loopback=False):
+def create_soc(board, **kwargs):
     if board not in BOARDS:
         raise ValueError(f"Unknown board '{board}', available: {', '.join(BOARDS)}")
-    info         = BOARDS[board]
-    platform     = importlib.import_module(info["platform"]).Platform()
-    sys_clk_freq = int(100e6)
-
-    if info["transport"] == "usb":
-        transport = USBTransport(platform, sys_clk_freq, with_loopback=with_loopback)
-    else:
-        raise ValueError(f"Unknown transport '{info['transport']}' for board '{board}'")
-
-    return PCIeDMAEngineSoC(platform, sys_clk_freq, transport=transport, with_analyzer=with_analyzer)
+    target = importlib.import_module(BOARDS[board])
+    return target.create_soc(**kwargs)

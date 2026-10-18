@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="720" viewBox="0 0 1180 720" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .title  { font-size: 22px; font-weight: 700; fill: #15202b; }
+    .sub    { font-size: 12px; fill: #5a6b7b; }
+    .cont   { font-size: 14px; font-weight: 700; letter-spacing: .4px; }
+    .blk    { font-size: 12.5px; font-weight: 700; fill: #15202b; }
+    .small  { font-size: 10.5px; fill: #37474f; }
+    .grp    { font-size: 12px; font-weight: 700; fill: #8a5a12; }
+    .lbl    { font-size: 11px; font-weight: 700; fill: #6a4a00; }
+    .seam   { font-size: 11px; font-weight: 700; fill: #7a5c00; }
+    .ext    { font-size: 14px; font-weight: 700; fill: #ffffff; }
+    .extsub { font-size: 11px; fill: #e8eef4; }
+    .later  { font-size: 12px; font-weight: 700; fill: #6b7780; }
+    .laters { font-size: 10px; fill: #78868f; }
+    .leg    { font-size: 11px; fill: #37474f; }
+  </style>
+  <rect x="0" y="0" width="1180" height="720" fill="#ffffff"/>
+  <text x="40" y="34" class="title">PCIe DMA Engine SoC — architecture</text>
+  <text x="40" y="54" class="sub">3 layers: PCIe interface (LitePCIe PHY) · DMA engine · application (PCILeech) — host link via Transport. Today: PCILeech transaction-level mode (host-driven); reusable DMA engine planned.</text>
+
+  <!-- Legend -->
+  <rect x="846" y="20" width="16" height="12" rx="2" fill="#dfe8f6" stroke="#8a93c0"/>
+  <text x="868" y="30" class="leg">implemented</text>
+  <rect x="846" y="40" width="16" height="12" rx="2" fill="#e9edf0" stroke="#9aa7b0" stroke-dasharray="4 3"/>
+  <text x="868" y="50" class="leg">planned (to implement later)</text>
+
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#45555f"/>
+    </marker>
+  </defs>
+
+  <!-- SoC container -->
+  <rect x="40" y="86" width="940" height="560" rx="16" fill="#f4f7fa" stroke="#b9c6d2" stroke-width="2"/>
+  <text x="56" y="110" class="cont" fill="#37474f">FPGA — PCIe DMA Engine SoC</text>
+
+  <!-- ===================== DMA Engine (left) ===================== -->
+  <rect x="60" y="120" width="300" height="404" rx="12" fill="#edf5ef" stroke="#5c9c78" stroke-width="2"/>
+  <text x="74" y="142" class="cont" fill="#2f6f4e">DMA Engine (PCIe)</text>
+
+  <rect x="72" y="150" width="276" height="46" rx="8" fill="#dfe8f6" stroke="#5c9c78"/>
+  <text x="210" y="169" text-anchor="middle" class="blk">TLP data plane — raw inject / return</text>
+  <text x="210" y="186" text-anchor="middle" class="small">PCIe transaction plumbing (host-driven)</text>
+
+  <rect x="72" y="202" width="276" height="44" rx="8" fill="#e9edf0" stroke="#9aa7b0" stroke-dasharray="5 4"/>
+  <text x="210" y="221" text-anchor="middle" class="later">H2C / C2H requester</text>
+  <text x="210" y="237" text-anchor="middle" class="laters">mem read/write req · address + length</text>
+
+  <rect x="72" y="252" width="276" height="44" rx="8" fill="#e9edf0" stroke="#9aa7b0" stroke-dasharray="5 4"/>
+  <text x="210" y="271" text-anchor="middle" class="later">Completion + tag management</text>
+  <text x="210" y="287" text-anchor="middle" class="laters">match completions · reassemble reads</text>
+
+  <rect x="72" y="302" width="276" height="44" rx="8" fill="#e9edf0" stroke="#9aa7b0" stroke-dasharray="5 4"/>
+  <text x="210" y="321" text-anchor="middle" class="later">Descriptor / scatter-gather</text>
+  <text x="210" y="337" text-anchor="middle" class="laters">queues/rings · autonomous transfers</text>
+
+  <rect x="72" y="352" width="276" height="44" rx="8" fill="#e9edf0" stroke="#9aa7b0" stroke-dasharray="5 4"/>
+  <text x="210" y="371" text-anchor="middle" class="later">Completion / error reporting · MSI</text>
+  <text x="210" y="387" text-anchor="middle" class="laters">status/error · interrupt the host</text>
+
+  <rect x="72" y="402" width="276" height="44" rx="8" fill="#e9edf0" stroke="#9aa7b0" stroke-dasharray="5 4"/>
+  <text x="210" y="421" text-anchor="middle" class="later">BAR / completer (target side)</text>
+  <text x="210" y="437" text-anchor="middle" class="laters">answer target memory requests</text>
+
+  <text x="210" y="476" text-anchor="middle" class="laters">dashed = reusable DMA engine, planned (Project A/B)</text>
+
+  <!-- ===================== PCILeech protocol engine (middle) ===================== -->
+  <rect x="380" y="120" width="286" height="404" rx="12" fill="#eef1f7" stroke="#8a93c0" stroke-width="2"/>
+  <text x="394" y="140" class="cont" fill="#4a4f86">PCILeech protocol engine</text>
+  <text x="394" y="156" class="laters" fill="#6a6fa0">application layer</text>
+
+  <rect x="392" y="166" width="262" height="50" rx="8" fill="#e6ecfb" stroke="#8a93c0"/>
+  <text x="523" y="186" text-anchor="middle" class="blk">dword ⇄ TLP mapping</text>
+  <text x="523" y="203" text-anchor="middle" class="small">pairing · resync (0x66665555)</text>
+
+  <rect x="392" y="224" width="262" height="50" rx="8" fill="#e6ecfb" stroke="#8a93c0"/>
+  <text x="523" y="244" text-anchor="middle" class="blk">Return framer + arbiter</text>
+  <text x="523" y="261" text-anchor="middle" class="small">0xE groups · source nibbles</text>
+
+  <rect x="392" y="282" width="262" height="56" rx="8" fill="#e6ecfb" stroke="#8a93c0"/>
+  <text x="523" y="304" text-anchor="middle" class="blk">Control plane</text>
+  <text x="523" y="322" text-anchor="middle" class="small">registers (identity/CMD) · cfg-space shadow</text>
+
+  <rect x="392" y="346" width="262" height="50" rx="8" fill="#e6ecfb" stroke="#8a93c0"/>
+  <text x="523" y="366" text-anchor="middle" class="blk">cfg_mgmt bridge</text>
+  <text x="523" y="383" text-anchor="middle" class="small">live PCIe config read</text>
+
+  <!-- ===================== Transport (right) ===================== -->
+  <text x="698" y="142" class="grp">Host transport layer</text>
+  <rect x="686" y="150" width="276" height="96" rx="9" fill="#fdeede" stroke="#d99a56" stroke-width="1.5"/>
+  <text x="824" y="170" text-anchor="middle" class="grp">Ethernet</text>
+  <rect x="698" y="178" width="252" height="58" rx="7" fill="#fff6ec" stroke="#d99a56"/>
+  <text x="824" y="200" text-anchor="middle" class="blk">EthTransport</text>
+  <text x="824" y="218" text-anchor="middle" class="small">LiteEth UDP · SFP 1G / 2.5G</text>
+
+  <rect x="686" y="256" width="276" height="72" rx="9" fill="#fdeede" stroke="#d99a56" stroke-width="1.5"/>
+  <text x="824" y="276" text-anchor="middle" class="grp">USB</text>
+  <rect x="698" y="284" width="252" height="40" rx="7" fill="#fff6ec" stroke="#d99a56"/>
+  <text x="824" y="309" text-anchor="middle" class="blk">USBTransport — FT601 USB3</text>
+
+  <rect x="686" y="338" width="276" height="92" rx="9" fill="#faf0f0" stroke="#aa0088" stroke-dasharray="6 4" stroke-width="1.5" opacity="0.92"/>
+  <text x="824" y="358" text-anchor="middle" class="grp" fill="#88436b">⋯ future transports</text>
+  <rect x="698" y="366" width="252" height="56" rx="7" fill="#fdf5fa" stroke="#aa0088" stroke-dasharray="6 4"/>
+  <text x="824" y="388" text-anchor="middle" class="small">SFP↔SFP bridge (LiteICLink),</text>
+  <text x="824" y="404" text-anchor="middle" class="small">FT245, PCIe / Thunderbolt, …</text>
+
+  <!-- LitePCIe PHY (bottom, under DMA Engine) -->
+  <rect x="60" y="548" width="300" height="56" rx="10" fill="#e7f0e9" stroke="#6aa17f" stroke-width="1.5"/>
+  <text x="210" y="572" text-anchor="middle" class="blk">LitePCIe PHY</text>
+  <text x="210" y="590" text-anchor="middle" class="small">S7PCIEPHY (7-series) · GW5APCIEPHY · …</text>
+
+  <!-- Support strip -->
+  <rect x="380" y="548" width="140" height="56" rx="10" fill="#eef1f4" stroke="#b9c6d2"/>
+  <text x="450" y="572" text-anchor="middle" class="blk">CRG</text>
+  <text x="450" y="590" text-anchor="middle" class="small">clocks / QPLL</text>
+  <rect x="532" y="548" width="250" height="56" rx="10" fill="#eef1f4" stroke="#b9c6d2"/>
+  <text x="657" y="572" text-anchor="middle" class="blk">CSR / Wishbone</text>
+  <text x="657" y="590" text-anchor="middle" class="small">UART bridge · MSI · LiteScope</text>
+
+  <!-- HOST (right, external) -->
+  <rect x="1010" y="240" width="150" height="176" rx="12" fill="#1769aa"/>
+  <text x="1085" y="312" text-anchor="middle" class="ext">HOST</text>
+  <text x="1085" y="334" text-anchor="middle" class="extsub">PCILeech /</text>
+  <text x="1085" y="350" text-anchor="middle" class="extsub">LeechCore</text>
+  <text x="1085" y="372" text-anchor="middle" class="extsub">UDP :28474 / USB3</text>
+
+  <!-- TARGET (bottom, external) -->
+  <rect x="120" y="660" width="280" height="40" rx="10" fill="#37474f"/>
+  <text x="260" y="685" text-anchor="middle" class="ext">TARGET SYSTEM — PCIe slot</text>
+
+  <!-- Arrows -->
+  <g stroke="#45555f" stroke-width="2.5" fill="none">
+    <!-- host <-> transport -->
+    <line x1="1010" y1="318" x2="966" y2="318" marker-end="url(#a)"/>
+    <line x1="966" y1="340" x2="1010" y2="340" marker-end="url(#a)"/>
+    <!-- transport <-> protocol engine -->
+    <line x1="686" y1="318" x2="670" y2="318" marker-end="url(#a)"/>
+    <line x1="670" y1="340" x2="686" y2="340" marker-end="url(#a)"/>
+    <!-- protocol engine <-> DMA engine -->
+    <line x1="380" y1="318" x2="364" y2="318" marker-end="url(#a)"/>
+    <line x1="364" y1="340" x2="380" y2="340" marker-end="url(#a)"/>
+    <!-- DMA engine <-> PHY -->
+    <line x1="198" y1="528" x2="198" y2="546" marker-end="url(#a)"/>
+    <line x1="222" y1="546" x2="222" y2="528" marker-end="url(#a)"/>
+    <!-- PCIe to target -->
+    <line x1="210" y1="604" x2="210" y2="658" marker-end="url(#a)"/>
+  </g>
+  <text x="672" y="312" class="lbl">dword seam</text>
+  <text x="372" y="312" class="seam">TLP</text>
+  <text x="222" y="542" class="seam">raw TLP</text>
+  <text x="222" y="636" class="lbl">PCIe Gen2 x1</text>
+</svg>
