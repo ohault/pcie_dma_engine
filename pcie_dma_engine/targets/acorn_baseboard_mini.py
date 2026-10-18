@@ -142,6 +142,15 @@ class AcornBaseboardMiniSoC(SoCMini):
 
 # Builder entry point ------------------------------------------------------------------------------
 
-def create_soc(with_analyzer=False, with_loopback=True, variant="cle-215+", eth_speed="1G", **kwargs):
+def add_arguments(parser):
+    parser.add_argument("--eth-speed", default="1G", choices=["1G", "2.5G"],
+                        help="SFP Ethernet line speed (default: 1G)")
+    parser.add_argument("--variant",   default="cle-215+", choices=["cle-215+", "cle-215", "cle-101"],
+                        help="Acorn module variant (default: cle-215+)")
+
+def argdict(args):
+    return dict(eth_speed=args.eth_speed, variant=args.variant)
+
+def create_soc(variant="cle-215+", eth_speed="1G", **kwargs):
     platform = acorn_baseboard_mini.Platform(variant=variant)
     return AcornBaseboardMiniSoC(platform, eth_speed=eth_speed)

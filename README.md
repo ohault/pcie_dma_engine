@@ -58,9 +58,10 @@ $ ./build.py --board pcie_screamer --build
 $ ./build.py --board pcie_screamer --load
 ```
 
-`./build.py` is the build entry point. Use
-`--board pcie_screamer_m2` (or the `--m2` alias) for the M2 variant, and `--with-analyzer` /
-`--with-loopback` as needed. Run `./build.py --help` for all options.
+`./build.py` is the build entry point; `--board` is required (there is no default board). Each board
+contributes its own options — e.g. `--with-analyzer` / `--with-loopback` for the FT601 boards, and
+`--eth-speed {1G,2.5G}` / `--variant` for `acorn_baseboard_mini` — so only the options that apply to
+the chosen board are accepted. Run `./build.py --board <name> --help` to see them.
 
 ### Elaboration smoke test
 
