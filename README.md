@@ -13,6 +13,8 @@ over several transports (USB, Ethernet, ...), while staying compatible with the 
 
 ## Architecture
 
+![PCIe DMA Engine SoC architecture](doc/architecture.svg)
+
 The SoC is split along clean seams so new boards and host links can be added without touching the
 shared logic:
 
@@ -23,12 +25,15 @@ shared logic:
 
 ## Supported boards
 
-| `--board`           | FPGA                 | Transport  |
-|---------------------|----------------------|------------|
-| `pcie_screamer`     | Xilinx Artix-7 35T   | FT601 USB3 |
-| `pcie_screamer_m2`  | Xilinx Artix-7 35T   | FT601 USB3 |
+| `--board`              | FPGA                 | Transport              | Status      |
+|------------------------|----------------------|------------------------|-------------|
+| `pcie_screamer`        | Xilinx Artix-7 35T   | FT601 USB3             | Building    |
+| `pcie_screamer_m2`     | Xilinx Artix-7 35T   | FT601 USB3             | Building    |
+| `acorn_baseboard_mini` | Xilinx Artix-7 200T  | Ethernet/UDP (SFP)     | In progress |
 
-(`pcie_screamer` / `pcie_screamer_m2` name the original LambdaConcept boards.)
+(`pcie_screamer` / `pcie_screamer_m2` name the original LambdaConcept boards; `acorn_baseboard_mini`
+is the SQRL Acorn CLE215+ on the LiteX Acorn Baseboard Mini, reaching the host over the SFP cage as
+1G or 2.5G Ethernet — select with `--eth-speed {1G,2.5G}`.)
 
 ## Getting started
 
