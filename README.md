@@ -13,6 +13,8 @@ over several transports (USB, Ethernet, ...), while staying compatible with the 
 
 ## Architecture
 
+![PCIe DMA Engine SoC architecture](doc/architecture.svg)
+
 The SoC is split along clean seams so new boards and host links can be added without touching the
 shared logic:
 
