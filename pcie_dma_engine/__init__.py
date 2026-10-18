@@ -13,8 +13,9 @@ import importlib
 
 # board name -> target module (each exposes create_soc(**kwargs)).
 BOARDS = {
-    "pcie_screamer":    "pcie_dma_engine.targets.pcie_screamer",
-    "pcie_screamer_m2": "pcie_dma_engine.targets.pcie_screamer_m2",
+    "pcie_screamer":        "pcie_dma_engine.targets.pcie_screamer",
+    "pcie_screamer_m2":     "pcie_dma_engine.targets.pcie_screamer_m2",
+    "acorn_baseboard_mini": "pcie_dma_engine.targets.acorn_baseboard_mini",
 }
 
 def create_soc(board, **kwargs):
