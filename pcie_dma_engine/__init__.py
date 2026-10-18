@@ -2,7 +2,7 @@
 # This file is Copyright (c) 2018-2019 Pierre-Olivier Vauboin <po@lambdaconcept.com>
 # License: BSD
 
-# PCIe DMA Engine : open, multi-board PCIe DMA gateware built on LiteX.
+# PCIe DMA Engine SoC : open, multi-board PCIe DMA gateware built on LiteX.
 #
 # Library API: create_soc() builds a PCIeDMAEngineSoC for a given board, with a pluggable host
 # transport. The command-line interface lives in __main__ (python -m pcie_dma_engine).

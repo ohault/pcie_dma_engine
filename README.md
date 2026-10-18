@@ -1,4 +1,4 @@
-# PCIe DMA Engine
+# PCIe DMA Engine SoC
 
 Open, multi-board **PCIe DMA gateware built on LiteX**, aiming to be **compatible with the
 [PCILeech / LeechCore](https://github.com/ufrisk/pcileech) host tools**.

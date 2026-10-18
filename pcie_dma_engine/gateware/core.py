@@ -51,7 +51,7 @@ class PCIeDMAEngineSoC(SoCMini):
         assert transport is not None
 
         # SoCMini ----------------------------------------------------------------------------------
-        SoCMini.__init__(self, platform, sys_clk_freq, ident="PCIe DMA Engine", ident_version=True)
+        SoCMini.__init__(self, platform, sys_clk_freq, ident="PCIe DMA Engine SoC", ident_version=True)
 
         # CRG --------------------------------------------------------------------------------------
         self.submodules.crg = _CRG(platform, sys_clk_freq)

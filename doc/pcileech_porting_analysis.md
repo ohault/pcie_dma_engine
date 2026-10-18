@@ -1,4 +1,8 @@
-# PCIe Screamer → multi-board, PCILeech-compatible : design analysis
+# PCIe DMA Engine SoC — multi-board, PCILeech-compatible : design analysis
+
+(Project formerly *PCIe Screamer*; renamed to **PCIe DMA Engine SoC** — the build produces a
+complete, flashable SoC, not a reusable DMA-engine IP core. Code-level handles stay
+`pcie_dma_engine`.)
 
 Status: **analysis / design** (no gateware yet).
 Branch: `claude/pcie-screamer-porting-ak3ksh`.

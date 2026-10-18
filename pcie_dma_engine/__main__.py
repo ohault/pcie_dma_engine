@@ -4,7 +4,7 @@
 # This file is Copyright (c) 2018-2019 Pierre-Olivier Vauboin <po@lambdaconcept.com>
 # License: BSD
 
-# PCIe DMA Engine command-line interface: python -m pcie_dma_engine [options]
+# PCIe DMA Engine SoC command-line interface: python -m pcie_dma_engine [options]
 
 import os
 import argparse
@@ -16,7 +16,7 @@ from pcie_dma_engine import BOARDS, create_soc
 # Build --------------------------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(prog="pcie_dma_engine", description="PCIe DMA Engine Gateware")
+    parser = argparse.ArgumentParser(prog="pcie_dma_engine", description="PCIe DMA Engine SoC")
     parser.add_argument("--board",         default="pcie_screamer", choices=list(BOARDS), help="Board to build")
     parser.add_argument("--m2",            action="store_true", help="use M2 variant of PCIe Screamer (alias for --board pcie_screamer_m2)")
     parser.add_argument("--with-analyzer", action="store_true", help="enable Analyzer")
