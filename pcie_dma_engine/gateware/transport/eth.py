@@ -98,6 +98,9 @@ class EthTransport(Module):
             port.sink.dst_port.eq(remote_port),
             port.sink.ip_address.eq(remote_ip),
             port.sink.length.eq(send_count << 2),  # bytes
+            port.sink.be.eq(0xf),  # all 4 bytes valid: we only ever emit whole dwords. Without this
+                                   # the dw=32->dw=8 converter drops the last word and corrupts the
+                                   # frame FCS, so the host NIC silently discards the datagram.
             port.sink.data.eq(_bswap32(fifo.source.data)),  # BE protocol dword -> LE wire dword.
             port.sink.last.eq(beat == (send_count - 1)),
             fifo.source.ready.eq(port.sink.ready),
