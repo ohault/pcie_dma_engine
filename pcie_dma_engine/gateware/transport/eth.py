@@ -25,6 +25,16 @@ from pcie_dma_engine.gateware.pcileech.common import dword_layout, UDP_PORT
 MAX_DWORDS = 256
 
 
+def _bswap32(sig):
+    # Reverse the byte order of a 32-bit signal.
+    #
+    # LiteEth's dw=32 UDP port is little-endian: the first payload byte on the wire lands in the
+    # dword's LSB (StrideConverter 8<->32 with reverse=False). The PCILeech dword protocol (engine +
+    # host probe + LeechCore) is big-endian within a dword (first byte = MSB). We byte-swap at this
+    # seam, both directions, so the engine keeps its big-endian convention over a real LiteEth link.
+    return Cat(sig[24:32], sig[16:24], sig[8:16], sig[0:8])
+
+
 class EthTransport(Module):
     def __init__(self, phy, mac_address, ip_address, sys_clk_freq,
                  udp_port=UDP_PORT, flush_timeout=1024):
@@ -50,7 +60,7 @@ class EthTransport(Module):
         # RX (host -> FPGA): forward payload dwords, latch the sender's address/port.
         self.comb += [
             source.valid.eq(port.source.valid),
-            source.data.eq(port.source.data),
+            source.data.eq(_bswap32(port.source.data)),  # LE wire dword -> BE protocol dword.
             source.last.eq(port.source.last),
             port.source.ready.eq(source.ready),
         ]
@@ -88,7 +98,7 @@ class EthTransport(Module):
             port.sink.dst_port.eq(remote_port),
             port.sink.ip_address.eq(remote_ip),
             port.sink.length.eq(send_count << 2),  # bytes
-            port.sink.data.eq(fifo.source.data),
+            port.sink.data.eq(_bswap32(fifo.source.data)),  # BE protocol dword -> LE wire dword.
             port.sink.last.eq(beat == (send_count - 1)),
             fifo.source.ready.eq(port.sink.ready),
             If(port.sink.valid & port.sink.ready,
