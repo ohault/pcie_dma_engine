@@ -61,12 +61,12 @@ def read_cmd(addr, target=0x03):
 def parse_groups(data):
     resp = {}
     for i in range(0, len(data) - 31, 32):
-        status = int.from_bytes(bytes(data[i:i+4]), "big")
+        status = int.from_bytes(bytes(data[i:i+4]), "little")  # LeechCore reads dwords little-endian
         if (status & 0xf0000000) != (0xe << 28):
             continue
         for k in range(7):
             nib = (status >> (4*k)) & 0xf
-            dw  = int.from_bytes(bytes(data[i+4+4*k:i+8+4*k]), "big")
+            dw  = int.from_bytes(bytes(data[i+4+4*k:i+8+4*k]), "little")
             if (nib & 0x3) == 3:
                 addr = (dw >> 16) & 0xffff; bs = dw & 0xffff
                 resp[addr] = ((bs & 0xff) << 8) | ((bs >> 8) & 0xff)

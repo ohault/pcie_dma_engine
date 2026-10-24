@@ -11,14 +11,12 @@
 #
 # Wire format (see doc/pcileech_porting_analysis.md section 3, matching the gateware):
 #   - command word: 8 bytes, sent in order; magic 0x77 is byte[7].
-#   - transport dwords are big-endian (first byte = MSB); two dwords pair into a 64-bit word
-#     (first dword -> high half) on the FPGA.
+#   - transport dwords are little-endian on the wire, exactly as LeechCore's device_fpga.c reads
+#     them (x86 reads each 4-byte group as a native uint32); so a dword is decoded with
+#     int.from_bytes(.., "little").
 #   - return: 32-byte groups (1 status + 7 data dwords); status top nibble 0xE; each data word's
 #     source nibble is the next low nibble of the status word; command responses carry
 #     {addr[31:16], byteswap(data)[15:0]}.
-#
-# NOTE: exact on-wire byte order / packet framing may need adjustment against real hardware; this
-# probe mirrors the simulation-tested gateware protocol.
 
 import sys
 import socket
@@ -46,12 +44,12 @@ def parse_responses(data):
     """Parse 32-byte groups from a received buffer; return {addr: value} for command responses."""
     resp = {}
     for i in range(0, len(data) - 31, 32):
-        status = int.from_bytes(data[i:i + 4], "big")
+        status = int.from_bytes(data[i:i + 4], "little")
         if (status & 0xf0000000) != (FRAME_MARKER << 28):
             continue
         for k in range(7):
             nib = (status >> (4 * k)) & 0xf
-            dw  = int.from_bytes(data[i + 4 + 4 * k:i + 8 + 4 * k], "big")
+            dw  = int.from_bytes(data[i + 4 + 4 * k:i + 8 + 4 * k], "little")
             if (nib & 0x3) == PORT_COMMAND:
                 addr = (dw >> 16) & 0xffff
                 bs   = dw & 0xffff
