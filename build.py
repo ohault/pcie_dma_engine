@@ -50,7 +50,8 @@ def main():
 
     if args.flash:
         prog = soc.platform.create_programmer()
-        prog.load_bitstream(os.path.join(builder.gateware_dir, soc.build_name + ".bin"))
+        prog.flash(0, os.path.join(builder.gateware_dir, soc.build_name + ".bin"),
+            **getattr(soc.platform, "flash_kwargs", {}))
 
 
 if __name__ == "__main__":
