@@ -16,7 +16,8 @@
 #     int.from_bytes(.., "little").
 #   - return: 32-byte groups (1 status + 7 data dwords); status top nibble 0xE; each data word's
 #     source nibble is the next low nibble of the status word; command responses carry
-#     {addr[31:16], byteswap(data)[15:0]}.
+#     {data[31:16], byteswap(addr)[15:0]} -- the layout LeechCore's ParseConfigReply decodes
+#     (address = byteswap(low 16), data = high 16).
 
 import sys
 import socket
@@ -51,9 +52,9 @@ def parse_responses(data):
             nib = (status >> (4 * k)) & 0xf
             dw  = int.from_bytes(data[i + 4 + 4 * k:i + 8 + 4 * k], "little")
             if (nib & 0x3) == PORT_COMMAND:
-                addr = (dw >> 16) & 0xffff
-                bs   = dw & 0xffff
-                resp[addr] = ((bs & 0xff) << 8) | ((bs >> 8) & 0xff)  # undo byteswap
+                lo   = dw & 0xffff
+                addr = ((lo & 0xff) << 8) | ((lo >> 8) & 0xff)  # address = byteswap(low 16)
+                resp[addr] = (dw >> 16) & 0xffff                # data = high 16
     return resp
 
 

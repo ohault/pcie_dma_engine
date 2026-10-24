@@ -49,9 +49,9 @@ def parse_groups(data):
             nib = (status >> (4 * k)) & 0xf
             dw  = int.from_bytes(data[i + 4 + 4 * k:i + 8 + 4 * k], "little")
             if (nib & 0x3) == 3:  # PORT_COMMAND
-                addr = (dw >> 16) & 0xffff
-                bs   = dw & 0xffff
-                resp[addr] = ((bs & 0xff) << 8) | ((bs >> 8) & 0xff)  # undo byteswap
+                lo   = dw & 0xffff
+                addr = ((lo & 0xff) << 8) | ((lo >> 8) & 0xff)  # addr = byteswap(low 16)
+                resp[addr] = (dw >> 16) & 0xffff                # data = high 16
     return resp
 
 

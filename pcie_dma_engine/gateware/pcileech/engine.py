@@ -122,8 +122,15 @@ class PCILeechEngine(Module):
         reg_rd = Signal(16)
         self.comb += reg_rd.eq(Mux(f_rw, (rw >> addr_bit)[0:16], (ro >> addr_bit)[0:16]) &
                                Replicate(in_range, 16))
+        # Reply dword layout LeechCore's DeviceFPGA_Session_ParseConfigReply expects:
+        #   wAddr = byteswap(dword[15:0]); data16 = dword[31:16]
+        # i.e. {data16, byteswap(addr16)} -- address (byte-swapped) in the LOW half, data in the HIGH
+        # half. (The pcileech-fpga HDL's _cmd_tx_din uses the opposite halves, but its FT601/COM path
+        # reorders the bytes before the wire; our LiteEth path does not, so we emit the wire layout
+        # directly.) Getting this wrong makes LeechCore read the address as data and reject the v4
+        # identity (reported as device v0.0).
         reg_resp = Signal(32)
-        self.comb += reg_resp.eq(Cat(reg_rd[8:16], reg_rd[0:8], addr16))  # {addr, byteswap(data16)}
+        self.comb += reg_resp.eq(Cat(addr16[8:16], addr16[0:8], reg_rd))  # {data16, byteswap(addr16)}
 
         # --- Config-space shadow (host-editable config image) -------------------------------------
         # 256-byte (64-dword) standard config header; host reads/writes it via the shadow command

@@ -79,14 +79,13 @@ def parse_groups(dwords):
 def test_identity_reads():
     # Read magic (offset 0x00), version (0x08), device id (0x0A).
     out = run([read_cmd(0x00), read_cmd(0x08), read_cmd(0x0a)])
-    # Collect command-channel responses: {addr[31:16], byteswap(data)[15:0]}.
+    # Collect command-channel responses: {data[31:16], byteswap(addr)[15:0]} (LeechCore layout).
     resp = {}
     for nib, data in parse_groups(out):
         if (nib & 0x3) == PORT_COMMAND:
-            addr = (data >> 16) & 0xffff
-            bs   = data & 0xffff
-            val  = ((bs & 0xff) << 8) | ((bs >> 8) & 0xff)  # undo byte-swap
-            resp[addr] = val
+            lo   = data & 0xffff
+            addr = ((lo & 0xff) << 8) | ((lo >> 8) & 0xff)  # addr = byteswap(low 16)
+            resp[addr] = (data >> 16) & 0xffff              # data = high 16
 
     assert resp.get(0x00) == RO_MAGIC, f"magic: got {resp.get(0x00):#06x} exp {RO_MAGIC:#06x}"
     # version word at byte 0x08 = {minor[15:8], major[7:0]}
@@ -163,10 +162,9 @@ def test_register_write_readback():
     resp = {}
     for nib, data in parse_groups(out):
         if (nib & 0x3) == PORT_COMMAND:
-            addr = (data >> 16) & 0xffff
-            bs   = data & 0xffff
-            val  = ((bs & 0xff) << 8) | ((bs >> 8) & 0xff)
-            resp[addr & 0x7fff] = val  # mask off the RW-select bit in the echoed address
+            lo   = data & 0xffff
+            addr = ((lo & 0xff) << 8) | ((lo >> 8) & 0xff)  # addr = byteswap(low 16)
+            resp[addr & 0x7fff] = (data >> 16) & 0xffff     # mask off the RW-select bit
     assert resp.get(0x10) == 0xbeef, f"RW readback: got {resp.get(0x10)} exp 0xbeef"
     print("[OK] register write/readback: RW[0x10] = 0xbeef")
 
