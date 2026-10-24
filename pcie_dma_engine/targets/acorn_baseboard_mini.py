@@ -116,15 +116,17 @@ class AcornBaseboardMiniSoC(SoCMini):
         )
 
         # PCILeech core: command/register control plane + TLP data plane. --------------------------
-        # Identity reported to LeechCore (device_fpga.c): present as a NeTV2 (device id 5), the
-        # pcileech-fpga Ethernet/UDP reference board, since we use the same UDP transport. LeechCore's
-        # v4 connect only accepts a recognized board with version >= 4; version 1.0 / id 1 made it
-        # reject the v4 identity and fall back to the (unimplemented) v3 path, reporting v0.0.
-        # Values match pcileech-fpga NeTV2 (PARAM_VERSION_NUMBER_MAJOR/MINOR, PARAM_DEVICE_ID).
+        # Identity reported to LeechCore (device_fpga.c). This board is a SQRL Acorn CLE-215+, which
+        # pcileech-fpga calls "PCIeSquirrel" (LeechCore device id 0x0C), so we report that -- the
+        # honest identity for the hardware. LeechCore's "RawUDP" transport is chosen by the host's
+        # ip= parameter and is independent of the device id, so PCIeSquirrel works over UDP too.
+        # LeechCore's v4 connect only accepts a recognized board with version >= 4 (values below match
+        # pcileech-fpga PCIeSquirrel's PARAM_VERSION_NUMBER_MAJOR/MINOR / PARAM_DEVICE_ID); a lower
+        # version or unknown id makes it reject the v4 identity and report v0.0.
         self.submodules.pcileech = pcileech = PCILeechEngine(
             version_major = 4,
-            version_minor = 12,
-            device_id     = 5,            # 5 = NeTV2 (Ethernet/UDP)
+            version_minor = 14,
+            device_id     = 0x0c,         # 0x0C = PCIeSquirrel (SQRL Acorn)
             custom_value  = 0xffffffff,
             with_cfg_mgmt = True,
         )

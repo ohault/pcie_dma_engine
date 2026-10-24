@@ -38,20 +38,21 @@ Expected:
 ```
 received <N> bytes
   magic     : 0xab89 (OK)
-  version   : 4.12
-  device_id : 0x05
+  version   : 4.14
+  device_id : 0x0c
 ```
 
 `magic = 0xab89` confirms the Ethernet transport, dword pairing/endianness, command decode, and the
 return framer are all working end-to-end. If you get no bytes, check the SFP link, the IP/subnet,
-and that the bitstream is loaded. The identity reports as a NeTV2 (device id 5, version 4.12): that
-is the pcileech-fpga Ethernet/UDP board LeechCore recognizes for the `RAWUDP` transport, so it must
-present a version >= 4 and a known device id or LeechCore rejects the v4 identity.
+and that the bitstream is loaded. The identity reports as a PCIeSquirrel (device id 0x0C, version
+4.14) -- pcileech-fpga's name for the SQRL Acorn. LeechCore requires version >= 4 and a known device
+id or it rejects the v4 identity; the `RAWUDP` transport is selected by the host `ip=` option and is
+independent of the device id.
 
 ## 4. Run PCILeech / LeechCore
 
-The board presents to LeechCore as a **NeTV2 RawUDP** FPGA device (identity v4.12, FpgaID 5). Use the
-`RAWUDP` device with the board IP (host UDP port 28474):
+The board presents to LeechCore as a **PCIeSquirrel** FPGA device (identity v4.14, FpgaID 0x0C) --
+pcileech-fpga's name for the SQRL Acorn -- reached over the `RAWUDP` transport (host UDP port 28474):
 
 ```sh
 # On the bench (Acorn NOT in a target PCIe slot): skip the PCIe device-id requirement with nc=1.
@@ -60,7 +61,7 @@ The board presents to LeechCore as a **NeTV2 RawUDP** FPGA device (identity v4.1
 memprocfs -device RAWUDP://ip=192.168.1.50,nc=1 -mount /tmp/mnt -v
 
 # Expected device line:
-#   DEVICE: FPGA: NeTV2 RawUDP PCIe ... [v4.12,0000] [SYNC,NORM]
+#   DEVICE: FPGA: PCIeSquirrel PCIe ... [v4.14,0000] [SYNC,NORM]
 
 # With the Acorn seated in a target machine's PCIe slot (real DMA): drop nc=1; the device-id then
 # populates from PCIe config 0x0008 and MemProcFS analyzes that host's memory.
@@ -81,7 +82,7 @@ operation (device info) before DMA.
 
 - Ethernet (SFP 1000BASE-X) transport, UDP port 28474.
 - PCILeech control plane: CORE register reads (identity/handshake) and writes (CMD register).
-- Full LeechCore v4 connect handshake over `RAWUDP` — device recognized as NeTV2 v4.12.
+- Full LeechCore v4 connect handshake over `RAWUDP` — device recognized as PCIeSquirrel v4.14.
 
 Simulation-tested, not yet hardware-validated:
 

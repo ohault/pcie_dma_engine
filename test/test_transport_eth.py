@@ -29,8 +29,8 @@ from pcie_dma_engine.gateware.pcileech.engine import PCILeechEngine
 from pcie_dma_engine.gateware.transport.eth import _bswap32
 
 VERSION_MAJOR = 4
-VERSION_MINOR = 12
-DEVICE_ID     = 5
+VERSION_MINOR = 14
+DEVICE_ID     = 0x0c
 
 
 def read_cmd(addr, target=0x03):
