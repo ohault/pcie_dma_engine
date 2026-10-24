@@ -50,17 +50,44 @@ present a version >= 4 and a known device id or LeechCore rejects the v4 identit
 
 ## 4. Run PCILeech / LeechCore
 
-The board presents as a UDP FPGA device. Use PCILeech's FPGA-over-UDP device (see LeechCore's
-`device_fpga` documentation for the exact `-device` string for your version, e.g. an `rawudp`/`fpga`
-UDP form with the board IP). Start with a low-rate operation (device info) before DMA.
+The board presents to LeechCore as a **NeTV2 RawUDP** FPGA device (identity v4.12, FpgaID 5). Use the
+`RAWUDP` device with the board IP (host UDP port 28474):
+
+```sh
+# On the bench (Acorn NOT in a target PCIe slot): skip the PCIe device-id requirement with nc=1.
+# The device connects; there is no target RAM to analyze, so MemProcFS will report it cannot find
+# an OS ("Unable to locate valid DTB") -- that is expected and still proves the rawudp link works.
+memprocfs -device RAWUDP://ip=192.168.1.50,nc=1 -mount /tmp/mnt -v
+
+# Expected device line:
+#   DEVICE: FPGA: NeTV2 RawUDP PCIe ... [v4.12,0000] [SYNC,NORM]
+
+# With the Acorn seated in a target machine's PCIe slot (real DMA): drop nc=1; the device-id then
+# populates from PCIe config 0x0008 and MemProcFS analyzes that host's memory.
+memprocfs -device RAWUDP://ip=192.168.1.50 -mount /tmp/mnt
+```
+
+pcileech works the same way (`-device RAWUDP://ip=192.168.1.50[,nc=1]`). Start with a low-rate
+operation (device info) before DMA.
+
+> Confirmed on hardware: the full LeechCore v4 connect handshake succeeds over rawudp (transport,
+> dword protocol, byte order, UDP framing, identity). The identity must report version >= 4 and a
+> known FpgaID or LeechCore rejects it and reports `v0.0`; the reply dword layout LeechCore parses is
+> `{data[31:16], byteswap(addr)[15:0]}` (see `gateware/pcileech/engine.py`).
 
 ## 5. Current status & known gaps
 
-Working in simulation, expected to work on hardware (validate with the probe first):
+**Hardware-validated** (Acorn CLE215+ Mini, 1G SFP, against MemProcFS/LeechCore):
 
-- Ethernet (SFP 1000BASE-X / 2500BASE-X) transport, UDP port 28474.
+- Ethernet (SFP 1000BASE-X) transport, UDP port 28474.
 - PCILeech control plane: CORE register reads (identity/handshake) and writes (CMD register).
-- TLP data plane: `pcie_phy` ↔ dword stream ↔ UDP, both directions (framer + inject).
+- Full LeechCore v4 connect handshake over `RAWUDP` — device recognized as NeTV2 v4.12.
+
+Simulation-tested, not yet hardware-validated:
+
+- TLP data plane: `pcie_phy` ↔ dword stream ↔ UDP, both directions (framer + inject). The dword
+  byte order through the width converters still needs confirming against LeechCore on a real PCIe
+  target — watch for byte-swapped memory reads once the card is in a target slot.
 
 Not yet implemented — expect these to be needed for full enumeration / DMA and to require
 hardware iteration:
