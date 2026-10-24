@@ -38,13 +38,15 @@ Expected:
 ```
 received <N> bytes
   magic     : 0xab89 (OK)
-  version   : 1.0
-  device_id : 0x01
+  version   : 4.12
+  device_id : 0x05
 ```
 
 `magic = 0xab89` confirms the Ethernet transport, dword pairing/endianness, command decode, and the
 return framer are all working end-to-end. If you get no bytes, check the SFP link, the IP/subnet,
-and that the bitstream is loaded.
+and that the bitstream is loaded. The identity reports as a NeTV2 (device id 5, version 4.12): that
+is the pcileech-fpga Ethernet/UDP board LeechCore recognizes for the `RAWUDP` transport, so it must
+present a version >= 4 and a known device id or LeechCore rejects the v4 identity.
 
 ## 4. Run PCILeech / LeechCore
 

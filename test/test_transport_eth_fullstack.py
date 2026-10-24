@@ -46,7 +46,7 @@ from pcie_dma_engine.gateware.pcileech.engine import PCILeechEngine  # noqa: E40
 
 UDP_PORT  = 28474
 HOST_PORT = 0x1234
-VER_MAJOR, VER_MINOR, DEVICE_ID = 1, 0, 0x01
+VER_MAJOR, VER_MINOR, DEVICE_ID = 4, 12, 5
 
 
 def _ip(s):

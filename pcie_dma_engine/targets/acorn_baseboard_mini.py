@@ -116,10 +116,16 @@ class AcornBaseboardMiniSoC(SoCMini):
         )
 
         # PCILeech core: command/register control plane + TLP data plane. --------------------------
+        # Identity reported to LeechCore (device_fpga.c): present as a NeTV2 (device id 5), the
+        # pcileech-fpga Ethernet/UDP reference board, since we use the same UDP transport. LeechCore's
+        # v4 connect only accepts a recognized board with version >= 4; version 1.0 / id 1 made it
+        # reject the v4 identity and fall back to the (unimplemented) v3 path, reporting v0.0.
+        # Values match pcileech-fpga NeTV2 (PARAM_VERSION_NUMBER_MAJOR/MINOR, PARAM_DEVICE_ID).
         self.submodules.pcileech = pcileech = PCILeechEngine(
-            version_major = 1,
-            version_minor = 0,
-            device_id     = 0x01,
+            version_major = 4,
+            version_minor = 12,
+            device_id     = 5,            # 5 = NeTV2 (Ethernet/UDP)
+            custom_value  = 0xffffffff,
             with_cfg_mgmt = True,
         )
         self.comb += [

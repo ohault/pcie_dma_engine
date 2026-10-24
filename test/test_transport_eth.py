@@ -28,9 +28,9 @@ from litex.soc.interconnect import stream
 from pcie_dma_engine.gateware.pcileech.engine import PCILeechEngine
 from pcie_dma_engine.gateware.transport.eth import _bswap32
 
-VERSION_MAJOR = 1
-VERSION_MINOR = 0
-DEVICE_ID     = 0x01
+VERSION_MAJOR = 4
+VERSION_MINOR = 12
+DEVICE_ID     = 5
 
 
 def read_cmd(addr, target=0x03):
