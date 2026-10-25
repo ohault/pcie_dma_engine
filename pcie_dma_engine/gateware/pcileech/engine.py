@@ -35,6 +35,7 @@ from pcie_dma_engine.gateware.pcileech.common import (
     RO_MAGIC, PORT_TLP, PORT_CFG, PORT_COMMAND, CMD_MAGIC, dword_layout, framer_layout,
 )
 from pcie_dma_engine.gateware.pcileech.framer import PCILeechFramer
+from pcie_dma_engine.gateware.payload import HostPayload
 
 # Register-bank targets / channel types (command word bits [9:8]).
 TARGET_CORE = 0b11
@@ -46,11 +47,11 @@ RO_BITS = 320  # 40 bytes
 RW_BITS = 240  # 30 bytes
 
 
-class PCILeechEngine(Module):
+class PCILeechEngine(HostPayload):
     def __init__(self, version_major=1, version_minor=0, device_id=0x00, custom_value=0,
                  with_cfg_mgmt=False):
-        self.sink       = sink       = stream.Endpoint(dword_layout())   # host -> FPGA dwords.
-        self.source     = source     = stream.Endpoint(dword_layout())   # FPGA -> host dwords.
+        HostPayload.__init__(self)                                       # dword seam: self.sink/self.source.
+        sink, source    = self.sink, self.source                        # host <-> FPGA dwords.
         self.tlp_sink   = tlp_sink   = stream.Endpoint(phy_layout(64))   # TLPs to the PCIe bus.
         self.tlp_source = tlp_source = stream.Endpoint(phy_layout(64))   # TLPs from the PCIe bus.
         # PCIe requester id (bus/device/function) assigned by the target's enumeration, already in the

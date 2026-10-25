@@ -20,16 +20,17 @@ from litex.soc.interconnect import stream
 from liteeth.core import LiteEthUDPIPCore
 
 from pcie_dma_engine.gateware.pcileech.common import dword_layout, UDP_PORT
+from pcie_dma_engine.gateware.transport.base import HostTransport
 
 # Largest UDP payload, in dwords (1024 bytes), matching the PCILeech reference design.
 MAX_DWORDS = 256
 
 
-class EthTransport(Module):
+class EthTransport(HostTransport):
     def __init__(self, phy, mac_address, ip_address, sys_clk_freq,
                  udp_port=UDP_PORT, flush_timeout=1024):
-        self.sink   = sink   = stream.Endpoint(dword_layout())  # FPGA -> host (TX).
-        self.source = source = stream.Endpoint(dword_layout())  # host -> FPGA (RX).
+        HostTransport.__init__(self)  # exposes the opaque dword seam: self.sink (TX), self.source (RX).
+        sink, source = self.sink, self.source
 
         # # #
 

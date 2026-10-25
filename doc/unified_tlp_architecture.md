@@ -182,9 +182,12 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
    Still to do: refactor `USBTransport` the same way (FT601 exposes only `dword_layout()`; move
    Etherbone/raw-TLP out; keep the legacy host path working). Sim- and build-checked only — needs
    on-hardware validation on a LambdaConcept board.
-5. **Formalise the ❶ transport interface + a loopback payload** used by transport tests, and fold
-   `gateware/tlp.py` onto `TlpAdapter`. This is the enabler: it lets a new transport be built and
-   sim-validated with no payload and no board — the prerequisite for both FT601 and `usb3_pipe`. *(next)*
+5. **Formalise the ❶ transport interface + a loopback payload.** `HostTransport`
+   (`gateware/transport/base.py`) and `HostPayload`/`LoopbackPayload` (`gateware/payload.py`) now make
+   the seam explicit; `EthTransport` and `PCILeechEngine` inherit them, and `connect_payload()` joins
+   them. `test/test_payload_loopback.py` round-trips dwords through the seam with no PHY and no board —
+   the sim harness any hardware-less transport reuses. *(done; folding `gateware/tlp.py` onto
+   `TlpAdapter` still pending.)*
 6. **Add the USB3-over-SFP transport (`usb3_pipe`).** `Usb3Transport` behind the ❶ seam + a board
    variant routing the GTP to the SFP for USB3; host shim bridging USB3 Bulk/CDC to localhost rawudp.
    Simulation-only until an SFP2USB adapter is available (see §9).
