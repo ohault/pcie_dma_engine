@@ -154,30 +154,41 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
 
 ## 6. Current → target mapping
 
-| Piece | Today | Target |
-|---|---|---|
-| Transport seam | `EthTransport` ✓ | unchanged; becomes the contract |
-| FT601 transport | `USBTransport` bakes in payloads | expose only the dword seam |
-| TLP correctness | inside `PCILeechEngine` (Acorn branch) | extract to shared ❷ adapter |
-| Legacy TLP bridge | `gateware/tlp.py` | folds into ❷ as the BSD reference |
-| LeechCore app | `PCILeechEngine` (Acorn branch) | the first ❸ payload |
-| Upstream HDL | not used | optional GPLv3 ❸ wrapper (Xilinx) |
+| Piece | Status |
+|---|---|
+| Transport seam | `EthTransport` is the ❶ contract, now fully opaque ✓ |
+| FT601 transport | `USBTransport` still bakes in payloads — refactor to the seam pending |
+| TLP correctness | extracted to shared `gateware/tlp_adapter.py` (`TlpAdapter`, ❷) ✓ |
+| Legacy TLP bridge | `gateware/tlp.py` — fold onto `TlpAdapter` pending |
+| LeechCore app | `PCILeechEngine` landed as the first ❸ payload ✓ |
+| Upstream HDL | not used — optional GPLv3 ❸ wrapper (Xilinx) pending |
 
 ## 7. Migration plan (staged, each independently shippable)
 
 1. **This ADR** — agree the seams and the hybrid reuse strategy. *(done)*
 2. **Land the LeechCore payload on the default branch.** Bring `PCILeechEngine` + the four ❷ fixes
-   (validated on `acorn-cle215-mini`) into `dma-engine-soc`.
-3. **Extract the shared TLP adapter (❷).** Move byte-order/byte-enable/first-last/stale-tail out of
-   the payload into one tested module; re-point both the LeechCore payload and `gateware/tlp.py` at
-   it. Regression: the Acorn hardware path and the existing screamer build.
-4. **Refactor `USBTransport` to the seam (❶).** FT601 exposes only `dword_layout()` sink/source;
-   move Etherbone/raw-TLP out. Keep the legacy host path working (either as a selectable legacy
-   payload or by running the LeechCore payload over USB). Sim- and build-checked; needs on-hardware
-   validation on a LambdaConcept board.
-5. **Formalise the payload interface + a loopback payload** used by transport tests, so any new
-   transport is proven before a real payload is attached.
+   (validated on `acorn-cle215-mini`) into `dma-engine-soc`. *(done)*
+3. **Extract the shared TLP adapter (❷).** Byte-enable / stale-tail / first-last and the return
+   byte-order moved out of the payload into `gateware/tlp_adapter.py` (`TlpAdapter`), with its own
+   unit tests; the payload re-points at it. Hardware-validated on the Acorn (pattern read byte-exact,
+   identity intact). *(done; `gateware/tlp.py` adoption still pending — see below.)*
+4. **Make the transport opaque (❶).** `EthTransport` now moves little-endian wire dwords verbatim in
+   both directions; the LeechCore payload normalizes byte order at its own sink input, and the adapter
+   byte-swaps the return path. Hardware-validated on the Acorn. *(done for Ethernet.)*
+   Still to do: refactor `USBTransport` the same way (FT601 exposes only `dword_layout()`; move
+   Etherbone/raw-TLP out; keep the legacy host path working). Sim- and build-checked only — needs
+   on-hardware validation on a LambdaConcept board.
+5. **Fold `gateware/tlp.py` onto `TlpAdapter`** so the legacy USB path shares the one conversion, and
+   **formalise the payload interface + a loopback payload** used by transport tests.
 6. **(Optional) GPLv3 upstream wrapper** for Xilinx boards wanting upstream parity, isolated per §4.
+
+> Byte-order ownership (as built): the **return** byte-swap (PHY-native → PCIe wire order) lives in
+> the adapter (❷) and is payload-agnostic. The **inject** direction stays PHY-native through the
+> adapter because its data dword doubles as a register value/mask in the command stream, so inject
+> byte order is normalized once, with the command plane, at the payload's sink input — not split into
+> the adapter. A fully symmetric wire-order payload (adapter byte-swapping both directions) would mean
+> re-deriving the command parser in wire order and re-validating the whole connect handshake; deferred
+> as not worth the risk for no functional gain.
 
 ## 8. Open items
 
