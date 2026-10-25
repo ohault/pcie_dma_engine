@@ -253,32 +253,44 @@ class PCILeechEngine(Module):
         ]
 
         # --- TLP return (FPGA -> host): 64-bit TLPs from the PCIe bus -> 32-bit dwords ------------
-        self.submodules.ret_conv = ret_conv = StrideConverter(phy_layout(64), phy_layout(32))
-        self.comb += tlp_source.connect(ret_conv.sink)
+        # A completion is a 3-DW header + payload, often an odd dword count, so its last 64-bit beat
+        # carries one valid dword (be=0x0f). LiteX's StrideConverter down-converter drops such a stale
+        # high dword (and moves "last" to the real final dword) only when the payload data field is
+        # named "data"; litepcie's phy_layout names it "dat", which disables that handling and would
+        # leave the completion one dword too long -> LeechCore rejects it (cb != length). Re-expose the
+        # TLP stream under a "data"-named layout so the converter masks the stale tail dword.
+        def _data_layout(w):
+            return stream.EndpointDescription([("data", w), ("be", w // 8)])
+        self.submodules.ret_conv = ret_conv = StrideConverter(_data_layout(64), _data_layout(32))
+        self.comb += [
+            ret_conv.sink.valid.eq(tlp_source.valid),
+            ret_conv.sink.first.eq(tlp_source.first),
+            ret_conv.sink.last.eq(tlp_source.last),
+            ret_conv.sink.data.eq(tlp_source.dat),
+            ret_conv.sink.be.eq(tlp_source.be),
+            tlp_source.ready.eq(ret_conv.sink.ready),
+        ]
         tlp_ret = stream.Endpoint(framer_layout())
 
-        # Per-TLP dword index (saturating at 3). Completions use a 3-DW header; the rest is payload.
-        ret_idx = Signal(2)
+        # Track the first dword of each TLP (for the FIRST marker). After the last dword is consumed,
+        # the next one starts a new TLP.
+        ret_in_tlp = Signal()
         self.sync += If(ret_conv.source.valid & ret_conv.source.ready,
-            If(ret_conv.source.last,
-                ret_idx.eq(0),
-            ).Elif(ret_idx != 3,
-                ret_idx.eq(ret_idx + 1),
-            ),
+            ret_in_tlp.eq(~ret_conv.source.last),
         )
-        ret_dw    = ret_conv.source.dat
-        ret_first = ret_idx == 0            # start of a TLP
-        ret_hdr   = ret_idx < 3             # one of the 3 header dwords
+        ret_dw    = ret_conv.source.data
+        ret_first = ~ret_in_tlp             # start of a TLP
         # LeechCore's DeviceFPGA_Session_TlpFrameStep decodes each returned dword's source nibble as
         # {FIRST=bit3, LAST=bit2, port=bits[1:0]} and (for v4.13+) ignores any TLP that does not start
-        # with a FIRST-marked dword -- so the first dword of every completion must set bit3. It also
-        # byte-swaps the 3 header dwords before parsing but memcpy's the data payload verbatim, so the
-        # header dwords must go out in PCIe wire order (byte-swapped from litepcie's native dword) while
-        # the payload passes through unchanged.
+        # with a FIRST-marked dword, so the first dword of every completion must set bit3. LeechCore
+        # byte-swaps the 3 header dwords to parse them, and the S7PCIEPHY delivers the data payload in
+        # the same byte order, so every returned dword (header and payload alike) must go out byte-
+        # swapped from litepcie's native dword for both the header to parse and the payload bytes to
+        # land in host memory order (verified on hardware with a known target-RAM pattern).
         ret_bswap = Cat(ret_dw[24:32], ret_dw[16:24], ret_dw[8:16], ret_dw[0:8])
         self.comb += [
             tlp_ret.valid.eq(ret_conv.source.valid),
-            tlp_ret.data.eq(Mux(ret_hdr, ret_bswap, ret_dw)),
+            tlp_ret.data.eq(ret_bswap),
             tlp_ret.nibble.eq(Cat(Constant(PORT_TLP, 2), ret_conv.source.last, ret_first)),
             tlp_ret.last.eq(ret_conv.source.last),
             ret_conv.source.ready.eq(tlp_ret.ready),

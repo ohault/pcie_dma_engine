@@ -120,8 +120,8 @@ def bswap32(x):
 def test_tlp_loopback():
     # A returned completion carries source nibbles LeechCore decodes as {FIRST=bit3, LAST=bit2,
     # port=bits[1:0]=PORT_TLP}: the first dword must be FIRST-marked (v4.13+ ignores TLPs otherwise)
-    # and the last LAST-marked. The 3 header dwords go out byte-swapped (PCIe wire order); payload
-    # dwords pass through verbatim. Loop a 4-dword TLP (3 header + 1 payload) and check all of this.
+    # and the last LAST-marked. Every dword (header and payload) goes out byte-swapped so both the
+    # header parses and the payload lands in host memory order. Loop a 4-dword TLP and check all of it.
     from pcie_dma_engine.gateware.pcileech.common import PORT_TLP
     dut = _TlpLoopbackDUT()
     tlp = [0xaabbccdd, 0x11223344, 0x55667788, 0x99aabbcc]  # [h0, h1, h2, payload]
@@ -150,8 +150,41 @@ def test_tlp_loopback():
     assert d0 == bswap32(tlp[0]) and (n0 & 0x8), f"h0: {hex(d0)} nibble {n0:#x} (want FIRST+bswap)"
     assert d1 == bswap32(tlp[1]) and n1 == 0,    f"h1: {hex(d1)} nibble {n1:#x}"
     assert d2 == bswap32(tlp[2]) and n2 == 0,    f"h2: {hex(d2)} nibble {n2:#x}"
-    assert d3 == tlp[3]          and (n3 & 0x4), f"payload: {hex(d3)} nibble {n3:#x} (want LAST+raw)"
-    print("[OK] TLP loopback: FIRST/LAST markers, header byte-swap, payload passthrough")
+    assert d3 == bswap32(tlp[3]) and (n3 & 0x4), f"payload: {hex(d3)} nibble {n3:#x} (want LAST+bswap)"
+    print("[OK] TLP loopback: FIRST/LAST markers, all dwords byte-swapped")
+
+
+def test_tlp_loopback_odd():
+    # A completion with an odd dword count (3-DW header + odd payload) ends on a 64-bit beat with one
+    # valid dword. The return path must emit exactly that many dwords -- no stale trailing dword -- or
+    # LeechCore rejects the TLP (received length != header Length). Loop a 5-dword TLP and require
+    # exactly 5 dwords back, FIRST on the first and LAST on the fifth.
+    from pcie_dma_engine.gateware.pcileech.common import PORT_TLP
+    dut = _TlpLoopbackDUT()
+    tlp = [0x11111111, 0x22222222, 0x33333333, 0x44444444, 0x55555555]  # 5 dwords (odd)
+    dwords = []
+    for i, d in enumerate(tlp):
+        dwords += tlp_dwords(d, 1 if i == len(tlp) - 1 else 0)
+    out = []
+
+    def gen():
+        yield dut.source.ready.eq(1)
+        for dw in dwords:
+            yield dut.sink.data.eq(dw)
+            yield dut.sink.valid.eq(1)
+            yield
+        yield dut.sink.valid.eq(0)
+        for _ in range(4000):
+            if (yield dut.source.valid) and (yield dut.source.ready):
+                out.append((yield dut.source.data))
+            yield
+
+    run_simulation(dut, gen())
+    got = [(nib, data) for nib, data in parse_groups(out) if (nib & 0x3) == PORT_TLP]
+    assert len(got) == 5, f"expected exactly 5 TLP dwords (no stale), got {len(got)}: {[hex(d) for _, d in got]}"
+    assert got[0][1] == bswap32(tlp[0]) and (got[0][0] & 0x8), f"first: {got[0]}"
+    assert got[4][1] == bswap32(tlp[4]) and (got[4][0] & 0x4), f"last: {got[4]}"
+    print("[OK] TLP loopback (odd): 5-dword TLP returns exactly 5 dwords, no stale tail")
 
 
 def write_cmd(addr, value, mask=0xffff):
@@ -314,6 +347,7 @@ def test_tlp_inject_odd_be():
 def main():
     test_identity_reads()
     test_tlp_loopback()
+    test_tlp_loopback_odd()
     test_tlp_inject_odd_be()
     test_register_write_readback()
     test_shadow_write_readback()
