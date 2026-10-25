@@ -76,8 +76,8 @@ A transport is **only** a mover of opaque dwords. Contract:
 - Exposes **no** payload-specific port (no Wishbone, no TLP). A transport must build and pass with
   a trivial loopback payload and with any conforming payload.
 
-`EthTransport` already satisfies this (now fully opaque). `USBTransport` (FT601) is refactored to
-match (the Etherbone and raw-TLP bridges move *out* of the transport; see §7). A third transport,
+`EthTransport` already satisfies this (now fully opaque), as does the FT601 `Ft601Transport` (the
+legacy Etherbone + raw-TLP USB stack it replaced has been removed; see §7). A third transport,
 **USB3-over-SFP via [`usb3_pipe`](https://github.com/enjoy-digital/usb3_pipe)**, slots in the same
 way (see §9): the Acorn CLE-215+ on the Baseboard Mini is `usb3_pipe`'s own main validation target,
 reaching the host through an SFP2USB adapter over the *same* Artix-7 GTP this board uses for LiteEth —
@@ -105,9 +105,9 @@ and is the *single* home for the correctness rules the Acorn bring-up establishe
 > Note on the layer split: items 1, 2, 4 are **pure TLP/PHY correctness** and belong wholly in ❷,
 > reused by every payload and every family. Item 3's *mechanism* (per-TLP FIRST/LAST) is generic,
 > but the *nibble encoding* is the LeechCore wire format; keep the generic first/last signalling in
-> ❷ and let the payload stamp its own framing. The legacy `gateware/tlp.py` already implements the
-> equivalent of 1 and 4 correctly (via `Converter(report_valid_token_count=True)` and a
-> `be == 0xf` gate) — it is the reference for the BSD path and folds into ❷.
+> ❷ and let the payload stamp its own framing. (The now-removed legacy `gateware/tlp.py` implemented
+> the equivalent of 1 and 4 correctly via `Converter(report_valid_token_count=True)` and a `be == 0xf`
+> gate — it informed `TlpAdapter`, which is now the single implementation.)
 
 ### ❸ Payload (pluggable application)
 A payload is a module with two faces and optional sideband:
@@ -161,9 +161,9 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
 | Piece | Status |
 |---|---|
 | Transport seam | `EthTransport` is the ❶ contract, now fully opaque ✓ |
-| FT601 transport | opaque `Ft601Transport` + `PcileechUsbSoC`; screamers build PCILeech over USB ✓ (build-validated; needs board). Legacy `USBTransport` kept for `--legacy` |
+| FT601 transport | opaque `Ft601Transport` + `PcileechUsbSoC`; screamers build PCILeech over USB ✓ (build-validated; needs board) |
 | TLP correctness | extracted to shared `gateware/tlp_adapter.py` (`TlpAdapter`, ❷) ✓ |
-| Legacy TLP bridge | `gateware/tlp.py` — fold onto `TlpAdapter` pending |
+| Legacy USB path | removed — `gateware/tlp.py`, `usb.py` (USBCore), `etherbone.py`, `USBTransport`, `PCIeDMAEngineSoC` deleted ✓ |
 | LeechCore app | `PCILeechEngine` landed as the first ❸ payload ✓ |
 | Upstream HDL | not used — optional GPLv3 ❸ wrapper (Xilinx) pending |
 
@@ -182,15 +182,17 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
    **FT601/USB done too:** `Ft601Transport` (gateware/transport/usb.py) is an opaque `HostTransport`
    wrapping the FT601 FIFO (dword seam only); `PcileechUsbSoC` (gateware/soc.py) runs the LeechCore
    payload over it exactly as the Acorn does over Ethernet, and the `pcie_screamer` / `pcie_screamer_m2`
-   targets now default to it (`--legacy` keeps the original Etherbone + raw-TLP host path, whose code is
-   retained). Build-validated: `pcie_screamer` synthesizes to a bitstream (xc7a35t). *Not* hardware-
+   targets now use it. The legacy Etherbone + raw-TLP USB stack (`gateware/tlp.py`, `usb.py`,
+   `etherbone.py`, `USBTransport`, `PCIeDMAEngineSoC`) has been **removed**. Build-validated:
+   `pcie_screamer` synthesizes to a bitstream (xc7a35t) and all three boards elaborate. *Not* hardware-
    validated — no LambdaConcept board on hand; on-wire FT601 flow-control/keepalive details need a board.
 5. **Formalise the ❶ transport interface + a loopback payload.** `HostTransport`
    (`gateware/transport/base.py`) and `HostPayload`/`LoopbackPayload` (`gateware/payload.py`) now make
    the seam explicit; `EthTransport` and `PCILeechEngine` inherit them, and `connect_payload()` joins
    them. `test/test_payload_loopback.py` round-trips dwords through the seam with no PHY and no board —
-   the sim harness any hardware-less transport reuses. *(done; folding `gateware/tlp.py` onto
-   `TlpAdapter` still pending.)*
+   the sim harness any hardware-less transport reuses. The legacy `gateware/tlp.py` is gone (the whole
+   legacy USB path was retired rather than folded), so `TlpAdapter` is now the single TLP width/
+   byte-enable implementation in the tree. *(done.)*
 6. **Add the USB3-over-SFP transport (`usb3_pipe`).** `Usb3Transport` behind the ❶ seam + a board
    variant routing the GTP to the SFP for USB3; host shim bridging USB3 Bulk/CDC to localhost rawudp.
    Simulation-only until an SFP2USB adapter is available (see §9).
@@ -208,8 +210,6 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
 
 - Exact keepalive/resync ownership at the seam for FT601 vs UDP (both use `0x55556566`-class
   markers; confirm per transport).
-- Whether `gateware/tlp.py`'s whole-TLP buffering (level-based reframing) stays, or the generic
-  first/last signalling from ❷ replaces it.
 - CFG/shadow-config and DRP features (§ `pcileech_porting_analysis.md`) are payload concerns; decide
   per payload whether they are BSD-reimplemented or deferred to the GPLv3 wrapper.
 

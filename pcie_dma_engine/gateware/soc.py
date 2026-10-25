@@ -2,12 +2,13 @@
 # This file is Copyright (c) 2018-2019 Pierre-Olivier Vauboin <po@lambdaconcept.com>
 # License: BSD
 
-# Board-independent PCIe DMA Engine SoC.
+# PCILeech SoC over an opaque host transport (unified architecture).
 #
-# Wires the PCIe PHY, the (pluggable) host transport, MSI and the optional
-# analyzer together. Board-specific details (platform, clocking) are supplied by
-# the caller; the transport (USB/Ethernet/...) is supplied as a ready-built
-# object exposing the interface described in gateware/transport/usb.py.
+# Wires the PCIe PHY, the LeechCore payload (PCILeechEngine, which owns the shared TlpAdapter), MSI and
+# the optional analyzer together, driven by a pluggable opaque dword transport (a HostTransport such as
+# Ft601Transport). Board-specific details (platform, clocking) come from the caller. The Acorn
+# (Ethernet) target assembles the same payload inline; this module is the FT601/USB assembly used by
+# the LambdaConcept screamer boards.
 
 from migen import *
 from migen.genlib.resetsync import AsyncResetSynchronizer
@@ -44,60 +45,6 @@ class _CRG(Module):
         platform.add_period_constraint(usb_clk100, 1e9/100e6)
         self.comb += self.cd_usb.clk.eq(usb_clk100)
         self.specials += AsyncResetSynchronizer(self.cd_usb, ResetSignal("pcie"))
-
-# PCIeDMAEngineSoC --------------------------------------------------------------------------------------
-
-class PCIeDMAEngineSoC(SoCMini):
-    def __init__(self, platform, sys_clk_freq=int(100e6), transport=None, with_analyzer=True):
-        assert transport is not None
-
-        # SoCMini ----------------------------------------------------------------------------------
-        SoCMini.__init__(self, platform, sys_clk_freq, ident="PCIe DMA Engine SoC", ident_version=True)
-
-        # CRG --------------------------------------------------------------------------------------
-        self.submodules.crg = _CRG(platform, sys_clk_freq)
-
-        # Serial Wishbone Bridge -------------------------------------------------------------------
-        self.submodules.bridge = UARTWishboneBridge(platform.request("serial"), sys_clk_freq, baudrate=3e6)
-        self.bus.add_master(master=self.bridge.wishbone)
-
-        # PCIe PHY ---------------------------------------------------------------------------------
-        self.submodules.pcie_phy = S7PCIEPHY(platform, platform.request("pcie_x1"))
-
-        # Host Transport (USB/Ethernet/...) --------------------------------------------------------
-        self.submodules.transport = transport
-
-        # Transport <--> Wishbone ------------------------------------------------------------------
-        if transport.wishbone_master is not None:
-            self.bus.add_master(master=transport.wishbone_master)
-
-        # Transport <--> TLP -----------------------------------------------------------------------
-        if transport.tlp is not None:
-            self.comb += [
-                self.pcie_phy.source.connect(transport.tlp.sender.sink),
-                transport.tlp.receiver.source.connect(self.pcie_phy.sink),
-            ]
-
-        # Wishbone --> MSI -------------------------------------------------------------------------
-        self.submodules.msi = MSI()
-        self.comb += self.msi.source.connect(self.pcie_phy.msi)
-
-        # Led blink --------------------------------------------------------------------------------
-        usb_counter = Signal(32)
-        self.sync.usb += usb_counter.eq(usb_counter + 1)
-        self.comb += platform.request("user_led", 0).eq(usb_counter[26])
-
-        pcie_counter = Signal(32)
-        self.sync.pcie += pcie_counter.eq(pcie_counter + 1)
-        self.comb += platform.request("user_led", 1).eq(pcie_counter[26])
-
-        # Analyzer ---------------------------------------------------------------------------------
-        if with_analyzer:
-            analyzer_signals = [
-                self.pcie_phy.sink,
-                self.pcie_phy.source,
-            ]
-            self.submodules.analyzer = LiteScopeAnalyzer(analyzer_signals, 1024, csr_csv="test/analyzer.csv")
 
 # PcileechUsbSoC ----------------------------------------------------------------------------------------
 

@@ -5,7 +5,7 @@
 # Conformance harness for the unified transport/payload seam (doc/unified_tlp_architecture.md).
 # Pairs a bare HostTransport (the ❶ dword seam, no link logic) with the LoopbackPayload via
 # connect_payload() and checks dwords driven into the transport's RX come back out its TX unchanged.
-# This is the pattern a hardware-less transport (usb3_pipe Usb3Transport, FT601 USBTransport) uses to
+# This is the pattern a hardware-less transport (usb3_pipe Usb3Transport, FT601 Ft601Transport) uses to
 # sim-validate its seam: swap the bare HostTransport for the real one and drive its host-facing side.
 # Run: python3 test/test_payload_loopback.py
 

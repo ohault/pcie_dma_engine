@@ -31,7 +31,7 @@ class LoopbackPayload(HostPayload):
 
     It lets a transport be exercised end to end -- host -> transport -> payload -> transport -> host --
     in simulation, with no PCIe PHY and no board. This is the conformance harness for transports whose
-    hardware is not on hand yet (the usb3_pipe Usb3Transport, the FT601 USBTransport): drive the
+    hardware is not on hand yet (the usb3_pipe Usb3Transport, or the FT601 Ft601Transport): drive the
     transport's host-facing side, pair it with this payload, and check the dwords round-trip."""
     def __init__(self):
         HostPayload.__init__(self)

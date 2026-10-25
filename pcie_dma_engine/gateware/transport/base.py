@@ -9,7 +9,7 @@
 #     source : dwords host -> FPGA
 #     sink   : dwords FPGA -> host
 #
-# Subclasses (EthTransport, the FT601 USBTransport, a future usb3_pipe Usb3Transport) call
+# Subclasses (EthTransport, Ft601Transport, a future usb3_pipe Usb3Transport) call
 # super().__init__() and then drive self.source / consume self.sink.
 
 from migen import *

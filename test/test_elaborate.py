@@ -22,7 +22,7 @@ import os, sys
 sys.path.insert(0, {root!r})
 from litex.soc.integration.builder import Builder
 from pcie_dma_engine import create_soc
-soc = create_soc({board!r}, with_analyzer=True, with_loopback=False)
+soc = create_soc({board!r}, with_analyzer=True)
 Builder(soc, output_dir={out!r}, csr_csv=os.path.join({out!r}, "csr.csv"),
     compile_software=False, compile_gateware=False).build(run=False)
 print("ELAB_OK", {board!r}, soc.build_name)
