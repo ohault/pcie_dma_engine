@@ -25,12 +25,15 @@ shared logic:
 
 ## Supported boards
 
-| `--board`           | FPGA                 | Transport  |
-|---------------------|----------------------|------------|
-| `pcie_screamer`     | Xilinx Artix-7 35T   | FT601 USB3 |
-| `pcie_screamer_m2`  | Xilinx Artix-7 35T   | FT601 USB3 |
+| `--board`              | FPGA                 | Transport              | Status      |
+|------------------------|----------------------|------------------------|-------------|
+| `pcie_screamer`        | Xilinx Artix-7 35T   | FT601 USB3             | Building    |
+| `pcie_screamer_m2`     | Xilinx Artix-7 35T   | FT601 USB3             | Building    |
+| `acorn_baseboard_mini` | Xilinx Artix-7 200T  | Ethernet/UDP (SFP)     | In progress |
 
-(`pcie_screamer` / `pcie_screamer_m2` name the original LambdaConcept boards.)
+(`pcie_screamer` / `pcie_screamer_m2` name the original LambdaConcept boards; `acorn_baseboard_mini`
+is the SQRL Acorn CLE215+ on the LiteX Acorn Baseboard Mini, reaching the host over the SFP cage as
+1G or 2.5G Ethernet — select with `--eth-speed {1G,2.5G}`.)
 
 ## Getting started
 
@@ -55,9 +58,10 @@ $ ./build.py --board pcie_screamer --build
 $ ./build.py --board pcie_screamer --load
 ```
 
-`./build.py` is the build entry point. Use
-`--board pcie_screamer_m2` (or the `--m2` alias) for the M2 variant, and `--with-analyzer` /
-`--with-loopback` as needed. Run `./build.py --help` for all options.
+`./build.py` is the build entry point; `--board` is required (there is no default board). Each board
+contributes its own options — e.g. `--with-analyzer` / `--with-loopback` for the FT601 boards, and
+`--eth-speed {1G,2.5G}` / `--variant` for `acorn_baseboard_mini` — so only the options that apply to
+the chosen board are accepted. Run `./build.py --board <name> --help` to see them.
 
 ### Elaboration smoke test
 
