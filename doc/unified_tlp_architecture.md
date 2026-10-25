@@ -76,8 +76,12 @@ A transport is **only** a mover of opaque dwords. Contract:
 - Exposes **no** payload-specific port (no Wishbone, no TLP). A transport must build and pass with
   a trivial loopback payload and with any conforming payload.
 
-`EthTransport` already satisfies this. `USBTransport` is refactored to match (the Etherbone and
-raw-TLP bridges move *out* of the transport; see §7).
+`EthTransport` already satisfies this (now fully opaque). `USBTransport` (FT601) is refactored to
+match (the Etherbone and raw-TLP bridges move *out* of the transport; see §7). A third transport,
+**USB3-over-SFP via [`usb3_pipe`](https://github.com/enjoy-digital/usb3_pipe)**, slots in the same
+way (see §9): the Acorn CLE-215+ on the Baseboard Mini is `usb3_pipe`'s own main validation target,
+reaching the host through an SFP2USB adapter over the *same* Artix-7 GTP this board uses for LiteEth —
+so eth and usb3 are mutually exclusive per build, selected by a target variant.
 
 ### ❷ TLP adapter (shared, the heart of "unified TLP")
 One module converts between the PHY's `phy_layout(64)` TLP stream and a 32-bit dword TLP stream,
@@ -178,9 +182,13 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
    Still to do: refactor `USBTransport` the same way (FT601 exposes only `dword_layout()`; move
    Etherbone/raw-TLP out; keep the legacy host path working). Sim- and build-checked only — needs
    on-hardware validation on a LambdaConcept board.
-5. **Fold `gateware/tlp.py` onto `TlpAdapter`** so the legacy USB path shares the one conversion, and
-   **formalise the payload interface + a loopback payload** used by transport tests.
-6. **(Optional) GPLv3 upstream wrapper** for Xilinx boards wanting upstream parity, isolated per §4.
+5. **Formalise the ❶ transport interface + a loopback payload** used by transport tests, and fold
+   `gateware/tlp.py` onto `TlpAdapter`. This is the enabler: it lets a new transport be built and
+   sim-validated with no payload and no board — the prerequisite for both FT601 and `usb3_pipe`. *(next)*
+6. **Add the USB3-over-SFP transport (`usb3_pipe`).** `Usb3Transport` behind the ❶ seam + a board
+   variant routing the GTP to the SFP for USB3; host shim bridging USB3 Bulk/CDC to localhost rawudp.
+   Simulation-only until an SFP2USB adapter is available (see §9).
+7. **(Optional) GPLv3 upstream wrapper** for Xilinx boards wanting upstream parity, isolated per §4.
 
 > Byte-order ownership (as built): the **return** byte-swap (PHY-native → PCIe wire order) lives in
 > the adapter (❷) and is payload-agnostic. The **inject** direction stays PHY-native through the
@@ -198,3 +206,39 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
   first/last signalling from ❷ replaces it.
 - CFG/shadow-config and DRP features (§ `pcileech_porting_analysis.md`) are payload concerns; decide
   per payload whether they are BSD-reimplemented or deferred to the GPLv3 wrapper.
+
+## 9. USB3-over-SFP transport (`usb3_pipe`)
+
+A planned third transport that connects the monitoring host over USB3 through an SFP2USB adapter,
+in place of Ethernet — a strong validation of the "any transport behind one seam" goal, because it
+reuses the LeechCore payload, the TLP adapter and the PCIe PHY unchanged.
+
+Why it fits cleanly:
+
+- [`usb3_pipe`](https://github.com/enjoy-digital/usb3_pipe) (EnjoyDigital, LiteX) ships both the USB3
+  PHY (LFPS, training, 8b/10b, scrambling, LTSSM) **and a full USB3 device core** (link/protocol
+  layers, control + **Bulk** + isochronous endpoints). A Bulk IN/OUT endpoint pair carries the opaque
+  dword stream — exactly what the ❶ seam needs.
+- Its **main development/validation target is the Acorn CLE-215+ on the LiteX Acorn Baseboard Mini**,
+  reaching the host through an **SFP2USB adapter** over the board's Artix-7 **GTP** — the *same*
+  transceiver this project already drives for LiteEth. So `Usb3Transport` and `EthTransport` are
+  mutually exclusive per bitstream, chosen by a target variant (e.g. `--host-link {eth,usb3}`).
+- Host side needs **no custom kernel driver** (standard `usbfs`/`cdc_acm` + Python).
+
+Shape of the work:
+
+- `Usb3Transport(Module)`: wrap `usb3_pipe`'s device core + a Bulk endpoint pair, expose only
+  `dword_layout()` `sink`/`source`. No payload knowledge — same contract as `EthTransport`.
+- Add `usb3_pipe` as a vendored dependency and a board variant that routes the GTP to the SFP for USB3
+  instead of 1000BASE-X.
+- **Host integration without a new LeechCore backend:** because the transport is opaque and the dword
+  protocol is transport-agnostic, a tiny host shim can bridge the USB3 Bulk/CDC byte-pipe to localhost
+  UDP, so `pcileech`/MemProcFS connect via `RAWUDP://ip=127.0.0.1` and reuse the existing, validated
+  rawudp path. (A native LeechCore USB3 backend is a later option.)
+- **No USB SFP module on hand → simulation only** for now, matching how FT601 is handled: validate the
+  `Usb3Transport` dword seam against the loopback payload (ADR step 5) and build-check the variant;
+  flag on-hardware bring-up for when an SFP2USB adapter is available. `usb3_pipe`'s own `loopback`/
+  `bench` sims are the reference.
+
+This makes the **transport interface + loopback payload (ADR step 5)** the natural next step: it is the
+enabling work that lets both FT601 and `usb3_pipe` be built and sim-validated without their hardware.
