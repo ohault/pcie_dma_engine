@@ -113,13 +113,21 @@ class _TlpLoopbackDUT(Module):
         self.comb += core.tlp_sink.connect(core.tlp_source)
 
 
+def bswap32(x):
+    return ((x & 0xff) << 24) | ((x & 0xff00) << 8) | ((x >> 8) & 0xff00) | ((x >> 24) & 0xff)
+
+
 def test_tlp_loopback():
+    # A returned completion carries source nibbles LeechCore decodes as {FIRST=bit3, LAST=bit2,
+    # port=bits[1:0]=PORT_TLP}: the first dword must be FIRST-marked (v4.13+ ignores TLPs otherwise)
+    # and the last LAST-marked. The 3 header dwords go out byte-swapped (PCIe wire order); payload
+    # dwords pass through verbatim. Loop a 4-dword TLP (3 header + 1 payload) and check all of this.
     from pcie_dma_engine.gateware.pcileech.common import PORT_TLP
     dut = _TlpLoopbackDUT()
-    tlp = [(0xaabbccdd, 0), (0x11223344, 1)]  # a 2-dword TLP: dword0 (not last), dword1 (last)
+    tlp = [0xaabbccdd, 0x11223344, 0x55667788, 0x99aabbcc]  # [h0, h1, h2, payload]
     dwords = []
-    for d, last in tlp:
-        dwords += tlp_dwords(d, last)
+    for i, d in enumerate(tlp):
+        dwords += tlp_dwords(d, 1 if i == len(tlp) - 1 else 0)
     out = []
 
     def gen():
@@ -137,11 +145,13 @@ def test_tlp_loopback():
     run_simulation(dut, gen())
 
     got = [(nib, data) for nib, data in parse_groups(out) if (nib & 0x3) == PORT_TLP]
-    assert len(got) == 2, f"expected 2 TLP dwords back, got {len(got)}: {[(n, hex(d)) for n, d in got]}"
-    (n0, d0), (n1, d1) = got
-    assert d0 == 0xaabbccdd and (n0 >> 2) == 0, f"dword0: {hex(d0)} nibble {n0:#x}"
-    assert d1 == 0x11223344 and (n1 >> 2) == 1, f"dword1 (last): {hex(d1)} nibble {n1:#x}"
-    print("[OK] TLP loopback: 2-dword TLP round-trips with PORT_TLP nibble + last on dword1")
+    assert len(got) == 4, f"expected 4 TLP dwords back, got {len(got)}: {[(n, hex(d)) for n, d in got]}"
+    (n0, d0), (n1, d1), (n2, d2), (n3, d3) = got
+    assert d0 == bswap32(tlp[0]) and (n0 & 0x8), f"h0: {hex(d0)} nibble {n0:#x} (want FIRST+bswap)"
+    assert d1 == bswap32(tlp[1]) and n1 == 0,    f"h1: {hex(d1)} nibble {n1:#x}"
+    assert d2 == bswap32(tlp[2]) and n2 == 0,    f"h2: {hex(d2)} nibble {n2:#x}"
+    assert d3 == tlp[3]          and (n3 & 0x4), f"payload: {hex(d3)} nibble {n3:#x} (want LAST+raw)"
+    print("[OK] TLP loopback: FIRST/LAST markers, header byte-swap, payload passthrough")
 
 
 def write_cmd(addr, value, mask=0xffff):
@@ -253,9 +263,58 @@ def test_pcie_id_register():
     print("[OK] PCIe id register: PCIE 0x0008 -> bus:dev.fn 06:00.0 (0x0600, CFG channel)")
 
 
+class _TlpInjectDUT(Module):
+    # PCILeechEngine exposing the raw TLP bus sink so a test can observe the beats (dat/be/last)
+    # that would reach the 7-series PCIe core.
+    def __init__(self):
+        from pcie_dma_engine.gateware.pcileech.engine import PCILeechEngine
+        self.submodules.core = core = PCILeechEngine()
+        self.sink = core.sink
+        self.tlp  = core.tlp_sink
+        self.comb += core.tlp_source.valid.eq(0)
+
+
+def test_tlp_inject_odd_be():
+    # A 3-dword MRd (odd dword count) must leave the engine as exactly 3 dwords: the last 64-bit beat
+    # carries one valid dword, so its byte-enables must be 0x0f (not 0xff with a stale 4th dword, which
+    # the PCIe root port rejects as a Malformed TLP). A 4-dword TLP's last beat must stay be=0xff.
+    for tlp in ([0x00000000, 0x060080ff, 0x00001000], [0xa, 0xb, 0xc, 0xd]):
+        odd = len(tlp) % 2 == 1
+        dwords = []
+        for i, d in enumerate(tlp):
+            dwords += tlp_dwords(d, 1 if i == len(tlp) - 1 else 0)
+        beats = []
+
+        def gen():
+            yield dut.tlp.ready.eq(1)
+            for dw in dwords:
+                yield dut.sink.data.eq(dw)
+                yield dut.sink.valid.eq(1)
+                yield
+            yield dut.sink.valid.eq(0)
+            for _ in range(200):
+                if (yield dut.tlp.valid) and (yield dut.tlp.ready):
+                    beats.append(((yield dut.tlp.dat), (yield dut.tlp.be), (yield dut.tlp.last)))
+                yield
+
+        dut = _TlpInjectDUT()
+        run_simulation(dut, gen())
+        # Reconstruct the dwords actually placed on the bus (per last-beat byte-enables).
+        bus = []
+        for dat, be, last in beats:
+            bus.append(dat & 0xffffffff)
+            if be & 0xf0:
+                bus.append((dat >> 32) & 0xffffffff)
+        assert bus == tlp, f"bus dwords {[hex(x) for x in bus]} != TLP {[hex(x) for x in tlp]}"
+        last_be = beats[-1][1]
+        assert last_be == (0x0f if odd else 0xff), f"last beat be={last_be:#04x} (odd={odd})"
+    print("[OK] TLP inject byte-enables: 3-DW MRd -> 3 dwords (be=0x0f), 4-DW -> be=0xff")
+
+
 def main():
     test_identity_reads()
     test_tlp_loopback()
+    test_tlp_inject_odd_be()
     test_register_write_readback()
     test_shadow_write_readback()
     test_pcie_id_register()

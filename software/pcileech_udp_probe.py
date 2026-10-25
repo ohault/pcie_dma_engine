@@ -31,7 +31,7 @@ FRAME_MARKER  = 0xe
 PORT_COMMAND  = 3
 
 # CORE RO register offsets (bytes).
-RO = {0x00: "magic", 0x08: "version", 0x0a: "device_id"}
+RO = {0x00: "magic", 0x08: "version", 0x0a: "device_id", 0x0c: "tlp_inj", 0x0e: "tlp_rcv"}
 
 
 def read_cmd(addr, target=TARGET_CORE):
@@ -94,6 +94,9 @@ def main():
         print(f"  version   : {v & 0xff}.{(v >> 8) & 0xff}")
     if 0x0a in resp:
         print(f"  device_id : {resp[0x0a] & 0xff:#04x}")
+    if 0x0c in resp or 0x0e in resp:
+        print(f"  tlp_inject: {resp.get(0x0c, 0)}  (TLP words -> PHY)")
+        print(f"  tlp_recv  : {resp.get(0x0e, 0)}  (TLP words <- PHY)")
     return 0 if ok else 2
 
 

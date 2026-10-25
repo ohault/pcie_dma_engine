@@ -63,6 +63,16 @@ class PCILeechEngine(Module):
         self.submodules.framer = framer = PCILeechFramer()
         self.comb += framer.source.connect(source)
 
+        # TLP data-plane activity counters (diagnostic). Count 64-bit TLP words injected toward the
+        # PCIe PHY and words received from it, so a host read of these CORE registers after a DMA
+        # attempt shows whether read requests egress and whether any TLP (completion) comes back.
+        tlp_inj_cnt = Signal(16)
+        tlp_rcv_cnt = Signal(16)
+        self.sync += [
+            If(tlp_sink.valid   & tlp_sink.ready,   tlp_inj_cnt.eq(tlp_inj_cnt + 1)),
+            If(tlp_source.valid & tlp_source.ready, tlp_rcv_cnt.eq(tlp_rcv_cnt + 1)),
+        ]
+
         # Read-only register file (CORE bank), byte offsets per design doc section 3.4.
         ro = Signal(RO_BITS)
         self.comb += [
@@ -71,6 +81,8 @@ class PCILeechEngine(Module):
             ro[64:72].eq(version_major),   # +008 version major
             ro[72:80].eq(version_minor),   # +009 version minor
             ro[80:88].eq(device_id),       # +00A device id
+            ro[96:112].eq(tlp_inj_cnt),    # +00C TLP words injected -> PHY (diagnostic)
+            ro[112:128].eq(tlp_rcv_cnt),   # +00E TLP words received <- PHY (diagnostic)
             ro[288:320].eq(custom_value),  # +024 custom value
         ]
         rw = Signal(RW_BITS)  # CORE RW file (writes deferred).
@@ -213,19 +225,61 @@ class PCILeechEngine(Module):
             ),
         ]
         self.submodules.inj_conv = inj_conv = StrideConverter(phy_layout(32), phy_layout(64))
+        self.comb += inj_fifo.source.connect(inj_conv.sink)
+        # LiteX's StrideConverter only masks the byte-enables of unwritten slices when the payload's
+        # data field is literally named "data"; litepcie's phy_layout names it "dat", so that masking is
+        # skipped and an odd-length TLP's last 64-bit beat keeps a stale high dword with be=0xff. The
+        # 7-series PCIe core would then transmit that extra dword, turning a 3-DW MRd into a 4-DW TLP
+        # that the root port rejects as a Malformed TLP (Fatal) -> link reset. Mask the high byte-enables
+        # on odd-length last beats so exactly the requested dword count reaches the bus.
+        inj_half     = Signal()  # 0: next accepted inject dword is the low half of a new 64-bit word.
+        last_partial = Signal()  # the pending last output beat carries a single (low) dword.
+        self.sync += [
+            If(inj_conv.sink.valid & inj_conv.sink.ready,
+                If(inj_conv.sink.last, inj_half.eq(0)).Else(inj_half.eq(~inj_half)),
+            ),
+            If(inj_conv.sink.valid & inj_conv.sink.ready & inj_conv.sink.last & ~inj_half,
+                last_partial.eq(1)),
+            If(tlp_sink.valid & tlp_sink.ready & tlp_sink.last,
+                last_partial.eq(0)),
+        ]
         self.comb += [
-            inj_fifo.source.connect(inj_conv.sink),
-            inj_conv.source.connect(tlp_sink),
+            inj_conv.source.connect(tlp_sink, omit={"be"}),
+            If(tlp_sink.last & last_partial,
+                tlp_sink.be.eq(0x0f),
+            ).Else(
+                tlp_sink.be.eq(0xff),
+            ),
         ]
 
         # --- TLP return (FPGA -> host): 64-bit TLPs from the PCIe bus -> 32-bit dwords ------------
         self.submodules.ret_conv = ret_conv = StrideConverter(phy_layout(64), phy_layout(32))
         self.comb += tlp_source.connect(ret_conv.sink)
         tlp_ret = stream.Endpoint(framer_layout())
+
+        # Per-TLP dword index (saturating at 3). Completions use a 3-DW header; the rest is payload.
+        ret_idx = Signal(2)
+        self.sync += If(ret_conv.source.valid & ret_conv.source.ready,
+            If(ret_conv.source.last,
+                ret_idx.eq(0),
+            ).Elif(ret_idx != 3,
+                ret_idx.eq(ret_idx + 1),
+            ),
+        )
+        ret_dw    = ret_conv.source.dat
+        ret_first = ret_idx == 0            # start of a TLP
+        ret_hdr   = ret_idx < 3             # one of the 3 header dwords
+        # LeechCore's DeviceFPGA_Session_TlpFrameStep decodes each returned dword's source nibble as
+        # {FIRST=bit3, LAST=bit2, port=bits[1:0]} and (for v4.13+) ignores any TLP that does not start
+        # with a FIRST-marked dword -- so the first dword of every completion must set bit3. It also
+        # byte-swaps the 3 header dwords before parsing but memcpy's the data payload verbatim, so the
+        # header dwords must go out in PCIe wire order (byte-swapped from litepcie's native dword) while
+        # the payload passes through unchanged.
+        ret_bswap = Cat(ret_dw[24:32], ret_dw[16:24], ret_dw[8:16], ret_dw[0:8])
         self.comb += [
             tlp_ret.valid.eq(ret_conv.source.valid),
-            tlp_ret.data.eq(ret_conv.source.dat),
-            tlp_ret.nibble.eq(Cat(Constant(PORT_TLP, 2), ret_conv.source.last, Constant(0, 1))),
+            tlp_ret.data.eq(Mux(ret_hdr, ret_bswap, ret_dw)),
+            tlp_ret.nibble.eq(Cat(Constant(PORT_TLP, 2), ret_conv.source.last, ret_first)),
             tlp_ret.last.eq(ret_conv.source.last),
             ret_conv.source.ready.eq(tlp_ret.ready),
         ]
