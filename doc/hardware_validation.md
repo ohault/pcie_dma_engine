@@ -76,6 +76,15 @@ operation (device info) before DMA.
 > known FpgaID or LeechCore rejects it and reports `v0.0`; the reply dword layout LeechCore parses is
 > `{data[31:16], byteswap(addr)[15:0]}` (see `gateware/pcileech/engine.py`).
 
+> **DMA confirmed on hardware (Acorn in a target PCIe slot).** `pcileech display` reads arbitrary
+> target physical memory correctly. Verified definitively by writing a known pattern
+> (`0xC0DE0000 | index`) into a pinned target RAM page (`mmap`+`mlock`, physical address from
+> `/proc/self/pagemap`) and reading it back byte-exact over DMA, plus a clean sustained 64 KiB read.
+> If reads fail with a Malformed/AER error on the target, raise the device's MaxReadReq once per boot:
+> `sudo setpci -s <bdf> CAP_EXP+8.w=5830` (4096 B). DMA to the legacy BIOS region (`0xf0000`) is
+> expected to fail — it is not DMA-accessible. `/dev/mem` cannot read RAM above 1 MB on a
+> `CONFIG_STRICT_DEVMEM` kernel, so use a pinned-pattern page (not `/dev/mem`) to verify DMA content.
+
 ## 5. Current status & known gaps
 
 **Hardware-validated** (Acorn CLE215+ Mini, 1G SFP, against MemProcFS/LeechCore):
@@ -83,12 +92,19 @@ operation (device info) before DMA.
 - Ethernet (SFP 1000BASE-X) transport, UDP port 28474.
 - PCILeech control plane: CORE register reads (identity/handshake) and writes (CMD register).
 - Full LeechCore v4 connect handshake over `RAWUDP` — device recognized as PCIeSquirrel v4.14.
-
-Simulation-tested, not yet hardware-validated:
-
-- TLP data plane: `pcie_phy` ↔ dword stream ↔ UDP, both directions (framer + inject). The dword
-  byte order through the width converters still needs confirming against LeechCore on a real PCIe
-  target — watch for byte-swapped memory reads once the card is in a target slot.
+- **TLP DMA data plane (read): `pcie_phy` ↔ dword stream ↔ UDP, both directions.** `pcileech`
+  reads arbitrary target physical memory byte-exact. Four data-plane fixes were needed and are now
+  in `gateware/pcileech/engine.py` (all also covered by `test/test_pcileech_engine.py`):
+  1. *Inject, odd-length TLP:* force the last 64-bit beat's byte-enables to `0x0f`, else a stale high
+     dword makes a 3-DW MRd go out as 4 DW → the root port rejects it as a Malformed TLP (Fatal) and
+     resets the link. (LiteX only masks these when the field is named `data`; litepcie uses `dat`.)
+  2. *Return nibble:* source nibble is `{FIRST=bit3, LAST=bit2, port=bits[1:0]}`; v4.13+ LeechCore
+     (`fRequireFirst`) ignores any TLP whose first dword is not FIRST-marked.
+  3. *Return byte order:* byte-swap **every** returned dword (header and payload) — the S7PCIEPHY
+     delivers payload in the same order as the header, not host memory order.
+  4. *Return stale tail:* re-expose the TLP stream under a `data`-named layout so StrideConverter's
+     down-converter drops the stale high dword on odd-length completions (else the completion is one
+     dword too long and LeechCore rejects it: `cb != header Length`, protocol error).
 
 Not yet implemented — expect these to be needed for full enumeration / DMA and to require
 hardware iteration:
@@ -109,7 +125,7 @@ hardware iteration:
   `cfg_mgmt` responder. The exact v4 CFG reply framing (`{addr, byteswap(half)}` on `PORT_CFG` here)
   comes from a LeechCore session-helper not yet cross-checked — confirm it on hardware / capture.
 - **CFG write path and the loopback channel** (type `10`) on the return path.
-- **TLP dword ordering / byte-swap** through the width converters: confirm against LeechCore.
+- **TLP DMA write path** (host → target memory): the read path is validated; writes are untested.
 
 When validating, capture the first failing exchange (e.g. with `tcpdump`/Wireshark on UDP 28474) and
 compare against the dword protocol in `doc/pcileech_porting_analysis.md` section 3.
