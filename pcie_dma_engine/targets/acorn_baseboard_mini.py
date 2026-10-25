@@ -137,7 +137,9 @@ class AcornBaseboardMiniSoC(SoCMini):
             # PCIe TLP data plane.
             pcileech.tlp_sink.connect(pcie_phy.sink),      # injected TLPs -> PCIe bus
             pcie_phy.source.connect(pcileech.tlp_source),  # received TLPs -> host
-            # PCIe live-config bridge (cfg_mgmt).
+            # Enumerated requester id (bus/device/function) -> LeechCore "Device PCIe ID" at PCIE 0x0008.
+            pcileech.pcie_id.eq(pcie_phy.id),
+            # PCIe live-config bridge (cfg_mgmt) -- currently tied idle inside the engine.
             pcie_phy.cfg_mgmt_addr.eq(pcileech.cfg_mgmt_addr),
             pcie_phy.cfg_mgmt_function_number.eq(0),
             pcie_phy.cfg_mgmt_read.eq(pcileech.cfg_mgmt_read),

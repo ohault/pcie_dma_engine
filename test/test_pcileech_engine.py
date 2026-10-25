@@ -206,28 +206,26 @@ def pcie_read_cmd(addr):
     return bytes([0x00, 0x00, 0x00, 0x00, (addr >> 8) & 0x3f, addr & 0xff, 0x10 | 0x01, 0x77])
 
 
-class _CfgMgmtDUT(Module):
-    # PCILeechEngine with cfg_mgmt enabled and a 1-cycle fake cfg_mgmt responder.
-    def __init__(self, canned=0xdead0666):
+class _PcieIdDUT(Module):
+    # PCILeechEngine with the PCIe register bank enabled and a fixed enumerated requester id.
+    def __init__(self, pcie_id=0x0600):
         from pcie_dma_engine.gateware.pcileech.engine import PCILeechEngine
         self.submodules.core = core = PCILeechEngine(with_cfg_mgmt=True)
         self.sink   = core.sink
         self.source = core.source
-        self.comb += [core.tlp_source.valid.eq(0), core.tlp_sink.ready.eq(1)]
-        done = Signal()
-        self.sync += done.eq(core.cfg_mgmt_read & ~done)  # 1-cycle done pulse while read asserted
         self.comb += [
-            core.cfg_mgmt_read_write_done.eq(done),
-            core.cfg_mgmt_read_data.eq(canned),
+            core.tlp_source.valid.eq(0), core.tlp_sink.ready.eq(1),
+            core.pcie_id.eq(pcie_id),  # bus/device/function = Cat(function, device, bus)
         ]
 
 
-def test_cfg_mgmt_bridge():
+def test_pcie_id_register():
+    # LeechCore reads the "Device PCIe ID" (requester id) from FPGA_REG_PCIE 0x0008 on the CFG
+    # channel. For bus=6, dev=0, fn=0 the id is 0x0600; the 16-bit read at 0x0008 is {bus, devfn}
+    # = 0x0006, which LeechCore byte-swaps back to 0x0600.
     from pcie_dma_engine.gateware.pcileech.common import PORT_CFG
-    dut = _CfgMgmtDUT(canned=0xdead0666)
-    dwords = []
-    for dw in (cmd_dwords(pcie_read_cmd(0x0008)),):  # read PCIe device-id dword
-        dwords += dw
+    dut = _PcieIdDUT(pcie_id=0x0600)
+    dwords = cmd_dwords(pcie_read_cmd(0x0008))
     out = []
 
     def gen():
@@ -246,12 +244,13 @@ def test_cfg_mgmt_bridge():
     cfg = {}
     for nib, data in parse_groups(out):
         if (nib & 0x3) == PORT_CFG:
-            addr = (data >> 16) & 0xffff
-            bs   = data & 0xffff
-            cfg[addr] = ((bs & 0xff) << 8) | ((bs >> 8) & 0xff)  # undo byteswap
-    # addr 0x0008, addr_lo=0 -> high half of 0xdead0666 = 0xdead
-    assert cfg.get(0x0008) == 0xdead, f"cfg reply: {cfg}"
-    print("[OK] cfg_mgmt bridge: PCIe config read 0x0008 -> 0xdead (via cfg_mgmt, CFG channel)")
+            lo   = data & 0xffff
+            addr = ((lo & 0xff) << 8) | ((lo >> 8) & 0xff)  # addr = byteswap(low 16)
+            cfg[addr] = (data >> 16) & 0xffff                # data = high 16
+    assert cfg.get(0x0008) == 0x0006, f"pcie id reply: {cfg}"           # {bus=6, devfn=0}
+    bdf = ((cfg[0x0008] & 0xff) << 8) | ((cfg[0x0008] >> 8) & 0xff)     # host byte-swaps -> 0x0600
+    assert bdf == 0x0600, f"bdf: {bdf:#06x}"
+    print("[OK] PCIe id register: PCIE 0x0008 -> bus:dev.fn 06:00.0 (0x0600, CFG channel)")
 
 
 def main():
@@ -259,7 +258,7 @@ def main():
     test_tlp_loopback()
     test_register_write_readback()
     test_shadow_write_readback()
-    test_cfg_mgmt_bridge()
+    test_pcie_id_register()
     print("All PCILeech engine tests passed.")
 
 

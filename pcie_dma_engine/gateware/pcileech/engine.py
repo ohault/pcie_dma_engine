@@ -52,6 +52,10 @@ class PCILeechEngine(Module):
         self.source     = source     = stream.Endpoint(dword_layout())   # FPGA -> host dwords.
         self.tlp_sink   = tlp_sink   = stream.Endpoint(phy_layout(64))   # TLPs to the PCIe bus.
         self.tlp_source = tlp_source = stream.Endpoint(phy_layout(64))   # TLPs from the PCIe bus.
+        # PCIe requester id (bus/device/function) assigned by the target's enumeration, already in the
+        # sys domain (LitePCIe S7PCIEPHY.id = Cat(function, device, bus)). Served to LeechCore as the
+        # "Device PCIe ID" at FPGA_REG_PCIE 0x0008. Left 0 until the host wires the PHY's id in.
+        self.pcie_id    = pcie_id    = Signal(16)
 
         # # #
 
@@ -226,13 +230,19 @@ class PCILeechEngine(Module):
             ret_conv.source.ready.eq(tlp_ret.ready),
         ]
 
-        # --- PCIe live-config bridge (target 01 / dcfg path -> LitePCIe cfg_mgmt) -----------------
-        # Serves host reads of the live PCIe config (e.g. device id at 0x0008) by reading the PCIe
-        # hard-IP config via LitePCIe's cfg_mgmt interface. The reply is framed on the CFG channel.
-        # NOTE: the exact v4 CFG reply framing lives in a LeechCore session-helper not yet confirmed;
-        # {addr, byteswap(half)} on PORT_CFG is used here and must be validated against LeechCore.
+        # --- PCIe register bank (target 01) -> LeechCore "FPGA_REG_PCIE" -------------------------------
+        # LeechCore reads the device's PCIe identity from this bank as a register file (NOT a cfg_mgmt
+        # passthrough). The only field it needs to connect is the requester id (bus/device/function)
+        # at byte offset 0x0008, which it calls the "Device PCIe ID" and rejects when zero. That id is
+        # the PHY's enumerated id (self.pcie_id), already in the sys domain -- no cfg_mgmt (and no
+        # clock-domain crossing) is involved. Layout mirrors pcileech_pcie_cfg_a7.sv's read-only file:
+        #   +000 magic 0x2301   +004 bytecount   +008 bus_number, +009 device[4:0]|function[7:5].
+        # Reads reply on PORT_CFG with the same {data, byteswap(addr)} layout as the CORE bank.
         cfg_ret = None
         if with_cfg_mgmt:
+            # cfg_mgmt interface kept exposed for the acorn target's wiring, but tied idle: the live
+            # config-space read path (host writes cfg_mgmt_dwaddr/rd_en, reads back cfg_mgmt_do) needs
+            # a pcie<->sys CDC and is deferred until the TLP data plane is validated on hardware.
             self.cfg_mgmt_addr            = Signal(10)
             self.cfg_mgmt_read            = Signal()
             self.cfg_mgmt_write           = Signal()
@@ -241,41 +251,36 @@ class PCILeechEngine(Module):
             self.cfg_mgmt_read_data       = Signal(32)
             self.cfg_mgmt_read_write_done = Signal()
 
-            is_pcie_rd   = valid_word & (wtype == 0b01) & is_read  # target PCIE read (dcfg path)
-            cfg_req_addr = Signal(16)
-            cfg_req_lo   = Signal()
-            cfg_rd_data  = Signal(32)
+            RO_PCIE_BITS = 320
+            ro_pcie = Signal(RO_PCIE_BITS)
+            self.comb += [
+                ro_pcie[0:16].eq(0x2301),             # +000 magic
+                ro_pcie[32:64].eq(RO_PCIE_BITS >> 3), # +004 bytecount (bytes)
+                ro_pcie[64:72].eq(pcie_id[8:16]),     # +008 bus_number
+                ro_pcie[72:77].eq(pcie_id[3:8]),      # +009 device_number[4:0]
+                ro_pcie[77:80].eq(pcie_id[0:3]),      # +009 function_number[7:5]
+            ]
+
+            is_pcie_rd  = valid_word & (wtype == 0b01) & is_read  # target PCIE read
+            pcie_range  = addr_bit < RO_PCIE_BITS
+            pcie_reg_rd = Signal(16)
+            # Read-only file; RW-bank reads (addr bit15) return 0 but still echo the address so the
+            # host's DeviceFPGA_Session_ParseConfigReply marks them covered.
+            self.comb += pcie_reg_rd.eq((ro_pcie >> addr_bit)[0:16] &
+                                        Replicate(pcie_range & ~f_rw, 16))
+            pcie_resp = Signal(32)
+            self.comb += pcie_resp.eq(Cat(addr16[8:16], addr16[0:8], pcie_reg_rd))  # {data, byteswap(addr16)}
 
             self.submodules.cfg_fifo = cfg_fifo = stream.SyncFIFO(framer_layout(), 16)
-            self.submodules.cfg_fsm  = cfg_fsm  = FSM(reset_state="IDLE")
-            cfg_fsm.act("IDLE",
+            self.sync += [
+                cfg_fifo.sink.valid.eq(0),
                 If(word_stb & is_pcie_rd,
-                    NextValue(cfg_req_addr, addr16),
-                    NextValue(cfg_req_lo, addr16[1]),
-                    NextState("READ"),
+                    cfg_fifo.sink.valid.eq(1),
+                    cfg_fifo.sink.data.eq(pcie_resp),
+                    cfg_fifo.sink.nibble.eq(PORT_CFG),
+                    cfg_fifo.sink.last.eq(1),
                 ),
-            )
-            cfg_fsm.act("READ",
-                self.cfg_mgmt_read.eq(1),
-                self.cfg_mgmt_addr.eq(cfg_req_addr[2:12]),  # dword address
-                If(self.cfg_mgmt_read_write_done,
-                    NextValue(cfg_rd_data, self.cfg_mgmt_read_data),
-                    NextState("PUSH"),
-                ),
-            )
-            cfg_half = Signal(16)
-            cfg_resp = Signal(32)
-            self.comb += [
-                cfg_half.eq(Mux(cfg_req_lo, cfg_rd_data[0:16], cfg_rd_data[16:32])),
-                cfg_resp.eq(Cat(cfg_half[8:16], cfg_half[0:8], cfg_req_addr)),  # {addr, byteswap}
             ]
-            cfg_fsm.act("PUSH",
-                cfg_fifo.sink.valid.eq(1),
-                cfg_fifo.sink.data.eq(cfg_resp),
-                cfg_fifo.sink.nibble.eq(PORT_CFG),
-                cfg_fifo.sink.last.eq(1),
-                If(cfg_fifo.sink.ready, NextState("IDLE")),
-            )
             cfg_ret = cfg_fifo.source
 
         # --- Return arbiter: TLP > CFG > command responses -> framer -------------------------------
