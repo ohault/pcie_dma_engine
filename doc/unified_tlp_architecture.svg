@@ -1,0 +1,68 @@
+<svg width="680" viewBox="0 0 680 596" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Target unified TLP architecture</title>
+<desc>Four layers between the operator host and the PCIe target: pluggable transports, a pluggable payload, a shared TLP adapter, and the board-specific LitePCIe PHY, joined by three contract seams.</desc>
+<style>
+.t{font-family:sans-serif;font-size:14px}.ts{font-family:sans-serif;font-size:12px}.th{font-family:sans-serif;font-size:14px;font-weight:500}
+</style>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+
+<rect x="0" y="0" width="680" height="596" fill="#FFFFFF"/>
+
+<rect x="40" y="44" width="600" height="46" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text class="th" x="340" y="64" text-anchor="middle" dominant-baseline="central" fill="#444441">Operator host</text>
+<text class="ts" x="340" y="80" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">LeechCore / MemProcFS · future host app</text>
+
+<line x1="340" y1="90" x2="340" y2="110" stroke="#5F5E5A" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+
+<rect x="40" y="112" width="186" height="58" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="th" x="133" y="134" text-anchor="middle" dominant-baseline="central" fill="#3C3489">FT601 / USB3</text>
+<text class="ts" x="133" y="152" text-anchor="middle" dominant-baseline="central" fill="#534AB7">Ft601Transport</text>
+<rect x="247" y="112" width="186" height="58" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="th" x="340" y="134" text-anchor="middle" dominant-baseline="central" fill="#3C3489">LiteEth / UDP</text>
+<text class="ts" x="340" y="152" text-anchor="middle" dominant-baseline="central" fill="#534AB7">EthTransport</text>
+<rect x="454" y="112" width="186" height="58" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="th" x="547" y="134" text-anchor="middle" dominant-baseline="central" fill="#3C3489">SerDes / …</text>
+<text class="ts" x="547" y="152" text-anchor="middle" dominant-baseline="central" fill="#534AB7">future transport</text>
+
+<rect x="40" y="180" width="600" height="24" rx="6" fill="none" stroke="#888780" stroke-width="0.5" stroke-dasharray="4 3"/>
+<text class="ts" x="340" y="192" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">&#10112; transport seam · opaque 32-bit dword stream (dword_layout)</text>
+
+<rect x="40" y="214" width="186" height="58" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="th" x="133" y="236" text-anchor="middle" dominant-baseline="central" fill="#3C3489">LeechCore payload</text>
+<text class="ts" x="133" y="254" text-anchor="middle" dominant-baseline="central" fill="#534AB7">BSD · any family</text>
+<rect x="247" y="214" width="186" height="58" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="th" x="340" y="236" text-anchor="middle" dominant-baseline="central" fill="#3C3489">pcileech-fpga core</text>
+<text class="ts" x="340" y="254" text-anchor="middle" dominant-baseline="central" fill="#534AB7">GPLv3 · Xilinx only</text>
+<rect x="454" y="214" width="186" height="58" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="th" x="547" y="236" text-anchor="middle" dominant-baseline="central" fill="#3C3489">future payload X</text>
+<text class="ts" x="547" y="254" text-anchor="middle" dominant-baseline="central" fill="#534AB7">same interface</text>
+<text class="ts" x="340" y="286" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">&#10114; payload (pluggable) · + sideband: pcie_id · cfg_mgmt · msi</text>
+
+<rect x="40" y="298" width="600" height="24" rx="6" fill="none" stroke="#888780" stroke-width="0.5" stroke-dasharray="4 3"/>
+<text class="ts" x="340" y="310" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">payload TLP face · 32-bit dword TLP</text>
+
+<rect x="40" y="332" width="600" height="60" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text class="th" x="340" y="354" text-anchor="middle" dominant-baseline="central" fill="#085041">&#10113; shared TLP adapter</text>
+<text class="ts" x="340" y="374" text-anchor="middle" dominant-baseline="central" fill="#0F6E56">byte order · byte-enables · FIRST/LAST · stale-tail · requester</text>
+
+<rect x="40" y="402" width="600" height="24" rx="6" fill="none" stroke="#888780" stroke-width="0.5" stroke-dasharray="4 3"/>
+<text class="ts" x="340" y="414" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">phy_layout(64) TLP</text>
+
+<rect x="40" y="436" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text class="th" x="340" y="457" text-anchor="middle" dominant-baseline="central" fill="#444441">LitePCIe PHY (board-specific)</text>
+<text class="ts" x="340" y="475" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">S7 · US/US+ · Gowin · Lattice · Altera</text>
+
+<line x1="340" y1="492" x2="340" y2="512" stroke="#5F5E5A" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+
+<rect x="40" y="514" width="600" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text class="th" x="340" y="536" text-anchor="middle" dominant-baseline="central" fill="#444441">PCIe bus &#8594; target system memory</text>
+
+<rect x="40" y="572" width="13" height="13" rx="3" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text class="ts" x="59" y="579" dominant-baseline="central" fill="#5F5E5A">pluggable</text>
+<rect x="190" y="572" width="13" height="13" rx="3" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text class="ts" x="209" y="579" dominant-baseline="central" fill="#5F5E5A">shared (write once)</text>
+<rect x="420" y="572" width="13" height="13" rx="3" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text class="ts" x="439" y="579" dominant-baseline="central" fill="#5F5E5A">board-specific / external</text>
+</svg>

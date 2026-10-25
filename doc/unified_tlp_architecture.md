@@ -45,6 +45,11 @@ Two stacks grew in parallel and do **not** share a seam:
 Adopt the layering pcileech-fpga itself uses (its `pcileech_com` is a single dword FIFO behind
 which FT601/ETH are compile-time choices), expressed as explicit LiteX module contracts:
 
+![Target unified TLP architecture](unified_tlp_architecture.svg)
+
+A new transport, a new payload, or a new board each touches exactly one band, never the others.
+(Plain-text rendering of the same diagram:)
+
 ```
   board-specific                 ┌───────────────────────────┐
   ┌────────────────┐             │  Transport PHY            │  FT601 · LiteEth · SerDes · …
