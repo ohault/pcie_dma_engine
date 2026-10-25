@@ -23,11 +23,12 @@ DEVICE_ID     = 0x42
 
 
 def cmd_dwords(cmd8):
-    """Split an 8-byte command word into two transport dwords (big-endian within each dword,
-    first 4 bytes first). This matches pcileech_eth RX (first byte -> MSB) + com pairing."""
+    """Split an 8-byte command word into two little-endian wire dwords, exactly as the host puts them
+    on the wire and the opaque transport delivers them to the engine's sink (which normalizes byte
+    order internally). First 4 bytes -> first dword."""
     assert len(cmd8) == 8
-    dw0 = (cmd8[0] << 24) | (cmd8[1] << 16) | (cmd8[2] << 8) | cmd8[3]
-    dw1 = (cmd8[4] << 24) | (cmd8[5] << 16) | (cmd8[6] << 8) | cmd8[7]
+    dw0 = cmd8[0] | (cmd8[1] << 8) | (cmd8[2] << 16) | (cmd8[3] << 24)
+    dw1 = cmd8[4] | (cmd8[5] << 8) | (cmd8[6] << 16) | (cmd8[7] << 24)
     return [dw0, dw1]
 
 
@@ -98,9 +99,9 @@ def test_identity_reads():
 
 def tlp_dwords(d, last):
     """A host->FPGA TLP inject word (type 00, magic 0x77, data in [63:32], last in [10]) as two
-    transport dwords (first dword = high half)."""
+    little-endian wire dwords (first dword = high half), as the opaque transport delivers them."""
     w = (d << 32) | (last << 10) | CMD_MAGIC  # type 00 (TLP), magic 0x77
-    return [(w >> 32) & 0xffffffff, w & 0xffffffff]
+    return [bswap32((w >> 32) & 0xffffffff), bswap32(w & 0xffffffff)]
 
 
 class _TlpLoopbackDUT(Module):

@@ -100,17 +100,22 @@ def run_return(ndw):
     return out
 
 
+def _bswap32(x):
+    return ((x & 0xff) << 24) | ((x & 0xff00) << 8) | ((x >> 8) & 0xff00) | ((x >> 24) & 0xff)
+
+
 def test_return_stale_tail_and_first_last():
     for ndw in (4, 5):  # even and odd (odd exercises the stale-tail drop)
         out = run_return(ndw)
         assert len(out) == ndw, f"{ndw}-dword completion returned {len(out)} dwords (stale tail?)"
         dats = [d for d, _, _ in out]
-        assert dats == [0xAA00 + k for k in range(ndw)], f"return dwords (raw, no bswap): {[hex(x) for x in dats]}"
+        want = [_bswap32(0xAA00 + k) for k in range(ndw)]  # adapter byte-swaps native -> wire order
+        assert dats == want, f"return dwords (wire order): {[hex(x) for x in dats]} != {[hex(x) for x in want]}"
         firsts = [f for _, f, _ in out]
         lasts = [l for _, _, l in out]
         assert firsts[0] == 1 and sum(firsts) == 1, f"FIRST markers: {firsts}"
         assert lasts[-1] == 1 and sum(lasts) == 1, f"LAST markers: {lasts}"
-    print("[OK] adapter return: exact dword count, no stale tail, first on first + last on last, raw bytes")
+    print("[OK] adapter return: exact dword count, no stale tail, first/last, wire-order byte-swap")
 
 
 def main():

@@ -89,9 +89,15 @@ class TlpAdapter(Module):
         self.sync += If(ret_conv.source.valid & ret_conv.source.ready,
             in_tlp.eq(~ret_conv.source.last),
         )
+        # Byte-swap each returned dword from the PHY's native order to canonical PCIe wire order, so
+        # ret carries wire-order TLP dwords that any payload can consume (LeechCore parses them so).
+        # The inject direction is already normalized to PHY-native upstream (its data dword doubles as
+        # a register value/mask in the command stream, so its byte order is handled with the command
+        # plane, not here) -- hence this adapter byte-swaps only on return.
+        rdw = ret_conv.source.data
         self.comb += [
             self.ret.valid.eq(ret_conv.source.valid),
-            self.ret.dat.eq(ret_conv.source.data),
+            self.ret.dat.eq(Cat(rdw[24:32], rdw[16:24], rdw[8:16], rdw[0:8])),
             self.ret.first.eq(~in_tlp),
             self.ret.last.eq(ret_conv.source.last),
             ret_conv.source.ready.eq(self.ret.ready),

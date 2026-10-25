@@ -26,7 +26,6 @@ from migen import *
 from litex.soc.interconnect import stream
 
 from pcie_dma_engine.gateware.pcileech.engine import PCILeechEngine
-from pcie_dma_engine.gateware.transport.eth import _bswap32
 
 VERSION_MAJOR = 4
 VERSION_MINOR = 14
@@ -56,9 +55,9 @@ def parse_groups(data):
 
 
 class _Seam(Module):
-    # Host byte stream -> LiteEth RX converter -> _bswap32 -> engine -> TX converter (no swap),
-    # matching EthTransport: RX dwords are byte-reversed for the engine's command decode, TX reply
-    # dwords are emitted as-is (already in LeechCore's little-endian order).
+    # Host byte stream -> LiteEth RX converter -> engine -> TX converter (no swap), matching the opaque
+    # EthTransport: the transport moves little-endian wire dwords verbatim and the engine normalizes
+    # byte order internally; TX reply dwords are emitted as-is (already in LeechCore's LE order).
     def __init__(self):
         self.submodules.rx  = rx  = stream.StrideConverter([("data", 8)], [("data", 32)], reverse=False)
         self.submodules.eng = eng = PCILeechEngine(VERSION_MAJOR, VERSION_MINOR, DEVICE_ID,
@@ -66,7 +65,7 @@ class _Seam(Module):
         self.submodules.tx  = tx  = stream.StrideConverter([("data", 32)], [("data", 8)], reverse=False)
         self.comb += [
             eng.sink.valid.eq(rx.source.valid),
-            eng.sink.data.eq(_bswap32(rx.source.data)),
+            eng.sink.data.eq(rx.source.data),
             rx.source.ready.eq(1),
 
             tx.sink.valid.eq(eng.source.valid),

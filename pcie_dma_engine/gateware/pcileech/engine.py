@@ -89,15 +89,21 @@ class PCILeechEngine(Module):
         rw = Signal(RW_BITS)  # CORE RW file (writes deferred).
 
         # RX: pair two dwords into a 64-bit word (first dword -> high half), with resync.
+        # The transport is opaque and delivers little-endian wire dwords; the LeechCore command
+        # protocol decodes with the magic byte at word[7:0], so normalize each incoming dword to the
+        # protocol byte order here, at the payload's input (TX replies are already emitted in the order
+        # LeechCore reads little-endian, so the output side needs no swap).
         self.comb += sink.ready.eq(1)
+        rx_dw = Signal(32)
+        self.comb += rx_dw.eq(Cat(sink.data[24:32], sink.data[16:24], sink.data[8:16], sink.data[0:8]))
         word       = Signal(64)
         have_first = Signal()
         word_stb   = Signal()  # pulses the cycle after a full 64-bit word is latched.
         self.sync += [
             word_stb.eq(0),
             If(sink.valid,
-                word.eq(Cat(sink.data, word[0:32])),  # (prev << 32) | new
-                If((sink.data == RESYNC_WORD) & (word[0:32] == RESYNC_WORD),
+                word.eq(Cat(rx_dw, word[0:32])),  # (prev << 32) | new
+                If((rx_dw == RESYNC_WORD) & (word[0:32] == RESYNC_WORD),
                     have_first.eq(0),
                 ).Elif(have_first,
                     have_first.eq(0),
@@ -238,17 +244,14 @@ class PCILeechEngine(Module):
             tlp_source.connect(tlp_adapter.phy_rx),
         ]
 
-        # --- TLP return framing (payload concern: byte order + source nibble). --------------------
-        # LeechCore byte-swaps the 3 completion header dwords to parse them and the S7PCIEPHY delivers
-        # the payload in that same order, so every returned dword goes out byte-swapped (verified on
-        # hardware with a known target-RAM pattern). The source nibble is {FIRST=bit3, LAST=bit2,
-        # port=PORT_TLP}; v4.13+ LeechCore ignores any TLP whose first dword is not FIRST-marked.
-        ret_dw    = tlp_adapter.ret.dat
-        ret_bswap = Cat(ret_dw[24:32], ret_dw[16:24], ret_dw[8:16], ret_dw[0:8])
-        tlp_ret   = stream.Endpoint(framer_layout())
+        # --- TLP return framing (payload concern: the LeechCore source nibble). -------------------
+        # tlp_adapter.ret already delivers wire-order dwords; the payload only stamps the source nibble
+        # {FIRST=bit3, LAST=bit2, port=PORT_TLP} (v4.13+ LeechCore ignores any TLP whose first dword is
+        # not FIRST-marked) and hands the stream to the framer.
+        tlp_ret = stream.Endpoint(framer_layout())
         self.comb += [
             tlp_ret.valid.eq(tlp_adapter.ret.valid),
-            tlp_ret.data.eq(ret_bswap),
+            tlp_ret.data.eq(tlp_adapter.ret.dat),
             tlp_ret.nibble.eq(Cat(Constant(PORT_TLP, 2), tlp_adapter.ret.last, tlp_adapter.ret.first)),
             tlp_ret.last.eq(tlp_adapter.ret.last),
             tlp_adapter.ret.ready.eq(tlp_ret.ready),

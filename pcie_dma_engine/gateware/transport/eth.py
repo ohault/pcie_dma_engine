@@ -25,20 +25,6 @@ from pcie_dma_engine.gateware.pcileech.common import dword_layout, UDP_PORT
 MAX_DWORDS = 256
 
 
-def _bswap32(sig):
-    # Reverse the byte order of a 32-bit signal.
-    #
-    # LiteEth's dw=32 UDP port is little-endian: the first payload byte on the wire lands in the
-    # dword's LSB (StrideConverter 8<->32 with reverse=False). LeechCore (device_fpga.c) reads reply
-    # dwords as little-endian x86 words and writes command bytes with the magic last. The engine
-    # decodes a command with the magic at word[7:0], so the RX dword must be byte-reversed to line
-    # the command bytes up; the engine already builds its reply dwords ({addr, byteswap(data)}) in
-    # the order LeechCore reads little-endian, so TX must NOT be reversed. Reversing TX (an earlier
-    # mistake, validated only against our own big-endian probe) made LeechCore read the status marker
-    # as 0x3....... instead of 0xE......., so it rejected every return group and reported v0.0.
-    return Cat(sig[24:32], sig[16:24], sig[8:16], sig[0:8])
-
-
 class EthTransport(Module):
     def __init__(self, phy, mac_address, ip_address, sys_clk_freq,
                  udp_port=UDP_PORT, flush_timeout=1024):
@@ -61,10 +47,12 @@ class EthTransport(Module):
         remote_ip   = Signal(32)
         remote_port = Signal(16)
 
-        # RX (host -> FPGA): forward payload dwords, latch the sender's address/port.
+        # RX (host -> FPGA): forward payload dwords verbatim, latch the sender's address/port. This
+        # transport is byte-order-agnostic (opaque): it moves whole little-endian wire dwords in both
+        # directions and leaves any byte-order normalization to the payload, so any payload can use it.
         self.comb += [
             source.valid.eq(port.source.valid),
-            source.data.eq(_bswap32(port.source.data)),  # LE wire dword -> BE protocol dword.
+            source.data.eq(port.source.data),
             source.last.eq(port.source.last),
             port.source.ready.eq(source.ready),
         ]
