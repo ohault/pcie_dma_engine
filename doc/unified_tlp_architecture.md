@@ -161,7 +161,7 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
 | Piece | Status |
 |---|---|
 | Transport seam | `EthTransport` is the ❶ contract, now fully opaque ✓ |
-| FT601 transport | `USBTransport` still bakes in payloads — refactor to the seam pending |
+| FT601 transport | opaque `Ft601Transport` + `PcileechUsbSoC`; screamers build PCILeech over USB ✓ (build-validated; needs board). Legacy `USBTransport` kept for `--legacy` |
 | TLP correctness | extracted to shared `gateware/tlp_adapter.py` (`TlpAdapter`, ❷) ✓ |
 | Legacy TLP bridge | `gateware/tlp.py` — fold onto `TlpAdapter` pending |
 | LeechCore app | `PCILeechEngine` landed as the first ❸ payload ✓ |
@@ -179,9 +179,12 @@ sim- and build-checked, and flagged for on-hardware validation by someone with t
 4. **Make the transport opaque (❶).** `EthTransport` now moves little-endian wire dwords verbatim in
    both directions; the LeechCore payload normalizes byte order at its own sink input, and the adapter
    byte-swaps the return path. Hardware-validated on the Acorn. *(done for Ethernet.)*
-   Still to do: refactor `USBTransport` the same way (FT601 exposes only `dword_layout()`; move
-   Etherbone/raw-TLP out; keep the legacy host path working). Sim- and build-checked only — needs
-   on-hardware validation on a LambdaConcept board.
+   **FT601/USB done too:** `Ft601Transport` (gateware/transport/usb.py) is an opaque `HostTransport`
+   wrapping the FT601 FIFO (dword seam only); `PcileechUsbSoC` (gateware/soc.py) runs the LeechCore
+   payload over it exactly as the Acorn does over Ethernet, and the `pcie_screamer` / `pcie_screamer_m2`
+   targets now default to it (`--legacy` keeps the original Etherbone + raw-TLP host path, whose code is
+   retained). Build-validated: `pcie_screamer` synthesizes to a bitstream (xc7a35t). *Not* hardware-
+   validated — no LambdaConcept board on hand; on-wire FT601 flow-control/keepalive details need a board.
 5. **Formalise the ❶ transport interface + a loopback payload.** `HostTransport`
    (`gateware/transport/base.py`) and `HostPayload`/`LoopbackPayload` (`gateware/payload.py`) now make
    the seam explicit; `EthTransport` and `PCILeechEngine` inherit them, and `connect_payload()` joins
